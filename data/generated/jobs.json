@@ -7,5 +7,14 @@
     "error": null,
     "created_at": "2026-11-03T17:45:09.729Z",
     "finished_at": null
+  },
+  "1c20dd7aa170": {
+    "id": "1c20dd7aa170",
+    "query": "Airtable",
+    "status": "running",
+    "slug": null,
+    "error": null,
+    "created_at": "2026-11-03T17:47:28.765Z",
+    "finished_at": null
   }
 }
