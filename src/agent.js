@@ -86,9 +86,15 @@ async function runJob(job) {
       p.url,
       `${p.title || ''} ${(p.headings || []).join(' ')} ${(p.sentences || []).join(' ')}`.toLowerCase(),
     ]));
+    const normUrl = (u) => String(u || '').replace(/[#?].*$/, '').replace(/\.md$/i, '').replace(/\/+$/, '').toLowerCase();
+    for (const [u, t] of [...passageTextByUrl]) if (!passageTextByUrl.has(normUrl(u))) passageTextByUrl.set(normUrl(u), t);
+    const mentionsUrlExactly = (text, url) => {
+      const esc = String(url).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      return new RegExp(esc + '(?![A-Za-z0-9/_.#?=&%-])').test(text);
+    };
     const contentWords = (text) => String(text).toLowerCase().match(/[a-z][a-z0-9-]{3,}/g) || [];
     const stepSupported = (step) => {
-      const pageText = passageTextByUrl.get(step.source);
+      const pageText = passageTextByUrl.get(step.source) || passageTextByUrl.get(normUrl(step.source));
       if (!pageText) return false;
       const words = contentWords(`${step.title} ${step.detail || ''}`)
         .filter((w) => !['oauth', 'http', 'https', 'com', 'www', 'your', 'with', 'from', 'that', 'this'].includes(w));
@@ -104,7 +110,7 @@ async function runJob(job) {
       slug: `gen-${slugify(guide.app || job.query)}-${job.id.slice(0, 6)}`,
       app: String(guide.app || job.query).slice(0, 80),
       website: onEvidence(guide.website) ? guide.website : undefined,
-      console_url: onEvidence(guide.console_url) && evidence.pages.some((p) => (p.links || []).includes(guide.console_url) || (p.sentences || []).some((x) => x.includes(guide.console_url)) || p.url === guide.console_url) ? guide.console_url : null,
+      console_url: onEvidence(guide.console_url) && evidence.pages.some((p) => (p.links || []).includes(guide.console_url) || (p.sentences || []).some((x) => mentionsUrlExactly(x, guide.console_url)) || p.url === guide.console_url) ? guide.console_url : null,
       difficulty: guide.difficulty,
       summary: String(guide.summary || '').slice(0, 600),
       approval: guide.approval && typeof guide.approval === 'object' ? (() => {
@@ -125,7 +131,7 @@ async function runJob(job) {
         // verified is computed server-side: the cited page must actually
         // have been fetched AND its extracted passages must share content
         // words with the step, so a citation cannot lean on a bare host match.
-        verified: (() => { const st = { source: (s || {}).source, title: String((s || {}).title || ''), detail: String((s || {}).detail || '') }; return fetchedUrls.has(st.source) && stepSupported(st); })(),
+        verified: (() => { const st = { source: (s || {}).source, title: String((s || {}).title || ''), detail: String((s || {}).detail || '') }; return (fetchedUrls.has(st.source) || [...fetchedUrls].some((f) => normUrl(f) === normUrl(st.source))) && stepSupported(st); })(),
       })),
       nuances: (Array.isArray(guide.nuances) ? guide.nuances : []).slice(0, 12).map((n) => String(n).slice(0, 300)),
       agent_can_do: (Array.isArray(guide.agent_can_do) ? guide.agent_can_do : []).slice(0, 8).map((n) => String(n).slice(0, 200)),
