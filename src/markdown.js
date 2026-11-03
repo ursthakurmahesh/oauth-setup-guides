@@ -23,7 +23,7 @@ function guideToMarkdown(g) {
   lines.push('## Steps');
   lines.push('');
   g.steps.forEach((s, i) => {
-    const badge = s.verified ? 'checked against source' : 'NOT independently verified';
+    const badge = s.verified ? 'source page fetched by server (not console-tested)' : 'no fetched source page backs this step';
     lines.push(`${i + 1}. **${s.title}** _(${badge})_`);
     if (s.detail) lines.push(`   ${s.detail}`);
     if (s.source) lines.push(`   Source: ${s.source}`);

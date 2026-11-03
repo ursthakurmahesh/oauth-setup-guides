@@ -48,7 +48,7 @@ function renderGuidePage(g) {
   const steps = g.steps.map((s) => `
     <li>
       <strong>${escapeHtml(s.title)}</strong>
-      <span class="badge ${s.verified ? 'ok' : 'warn'}">${s.verified ? 'checked against source' : 'not independently verified'}</span>
+      <span class="badge ${s.verified ? 'ok' : 'warn'}">${s.verified ? 'source page fetched by server' : 'no fetched source page backs this step'}</span>
       ${s.detail ? `<p>${escapeHtml(s.detail)}</p>` : ''}
       ${s.source ? `<p class="src"><a href="${escapeHtml(s.source)}">source</a></p>` : ''}
     </li>`).join('');
@@ -97,9 +97,31 @@ function serveStatic(res, pathname) {
   });
 }
 
+// Minimal abuse protection for a public deployment: fixed-window per-IP
+// limits (zero-dependency, in-memory). Tighten behind a real proxy for
+// production traffic.
+const rateBuckets = new Map();
+function rateLimited(ip, limit, windowMs) {
+  const now = Date.now();
+  let b = rateBuckets.get(ip);
+  if (!b || now - b.start > windowMs) { b = { start: now, count: 0 }; rateBuckets.set(ip, b); }
+  b.count += 1;
+  if (rateBuckets.size > 10000) rateBuckets.clear();
+  return b.count > limit;
+}
+function clientIp(req) {
+  const fwd = req.headers['x-forwarded-for'];
+  return (typeof fwd === 'string' && fwd.split(',')[0].trim()) || req.socket.remoteAddress || 'unknown';
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const p = url.pathname;
+  const ip = clientIp(req);
+  if (rateLimited(`all:${ip}`, 240, 60000)) {
+    res.writeHead(429, { 'content-type': 'application/json; charset=utf-8', 'retry-after': '60' });
+    return res.end(JSON.stringify({ error: 'rate limit exceeded, retry later' }));
+  }
   try {
     if (req.method === 'GET' && p === '/api/guides') {
       const term = url.searchParams.get('q');
@@ -125,6 +147,10 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, renderGuidePage(g), 'text/html; charset=utf-8');
     }
     if (req.method === 'POST' && p === '/api/generate') {
+      if (rateLimited(`gen:${ip}`, 5, 600000)) {
+        res.writeHead(429, { 'content-type': 'application/json; charset=utf-8', 'retry-after': '600' });
+        return res.end(JSON.stringify({ error: 'generation rate limit exceeded (5 per 10 minutes per IP)' }));
+      }
       const body = await readBody(req);
       const job = startGeneration(body.query);
       return sendJson(res, 202, { job_id: job.id, status: job.status });

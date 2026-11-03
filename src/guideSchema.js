@@ -50,7 +50,7 @@ function validateGuide(guide) {
         errors.push(`steps[${i}].source must be an http(s) url`);
       }
       if (step && typeof step.verified !== 'boolean') {
-        errors.push(`steps[${i}].verified must be a boolean (true = checked against a live source)`);
+        errors.push(`steps[${i}].verified must be a boolean (true only means the step's source URL was fetched by the server during investigation - it is docs-backed, never console-tested)`);
       }
     });
   }
