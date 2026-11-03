@@ -40,20 +40,20 @@ test('markdown export carries the three-tier badges and keeps the effort estimat
 
 test('walkthrough records attach by provider apex, never by display name', () => {
   delete require.cache[require.resolve('../server.js')];
-  const { renderGuidePage } = require('../server.js');
+  const { renderGuidePage, walkthroughFor } = require('../server.js');
   const fakeLinear = JSON.parse(JSON.stringify(guide));
   fakeLinear.slug = 'gen-linear-x1';
   fakeLinear.app = 'Linear';
   fakeLinear.website = 'https://linear.app';
   fakeLinear.sources = [{ url: 'https://linear.app/docs', title: 'docs' }];
-  const html = renderGuidePage(fakeLinear);
+  const html = renderGuidePage(fakeLinear, walkthroughFor(fakeLinear));
   assert.match(html, /Verified by Testing/, 'linear walkthrough attaches via apex');
   const fakeOther = JSON.parse(JSON.stringify(guide));
   fakeOther.slug = 'gen-other-x1';
   fakeOther.website = 'https://example.com';
   fakeOther.console_url = null;
   fakeOther.sources = [{ url: 'https://example.com/docs', title: 'docs' }];
-  const html2 = renderGuidePage(fakeOther);
+  const html2 = renderGuidePage(fakeOther, walkthroughFor(fakeOther));
   assert.doesNotMatch(html2, /Verified by Testing/, 'no apex match, no tested badge');
 });
 

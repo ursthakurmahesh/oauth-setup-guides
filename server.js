@@ -222,4 +222,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { server, renderGuidePage };
+module.exports = { server, renderGuidePage, walkthroughFor };
