@@ -68,6 +68,7 @@ function renderGuidePage(g) {
 <dt>Expected time / effort</dt><dd>${escapeHtml(g.approval.typical_timeline)}</dd>
 <dt>Approval</dt><dd>${g.approval.required === true ? 'required' : g.approval.required === 'conditional' ? 'required only in some cases' : 'not required to start'}${g.approval.notes ? ` - ${escapeHtml(g.approval.notes)}` : ''}</dd>
 ${g.console_url ? `<dt>Developer console</dt><dd><a href="${escapeHtml(g.console_url)}">${escapeHtml(g.console_url)}</a></dd>` : ''}
+${g.testing ? `<dt>How this was checked</dt><dd>${escapeHtml(g.testing.note)}</dd>` : ''}
 </dl>
 <h2>Steps</h2><ol class="steps">${steps}</ol>
 ${g.nuances.length ? `<h2>Nuances and gotchas</h2><ul>${list(g.nuances)}</ul>` : ''}

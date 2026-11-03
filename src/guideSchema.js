@@ -49,6 +49,11 @@ function validateGuide(guide) {
   for (const listField of ['nuances', 'agent_can_do', 'human_must_do']) {
     if (!Array.isArray(guide[listField])) errors.push(`${listField} must be an array`);
   }
+  if (guide.testing !== undefined) {
+    if (!guide.testing || typeof guide.testing.console_attempted !== 'boolean') {
+      errors.push('testing.console_attempted must be a boolean when testing is present');
+    }
+  }
   if (!Array.isArray(guide.sources) || guide.sources.length === 0) {
     errors.push('sources must be a non-empty array of {title, url}');
   } else {

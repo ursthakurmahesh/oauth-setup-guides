@@ -42,7 +42,24 @@ function stripHtml(html) {
     .replace(/[ \t]+/g, ' ');
 }
 
+// SSRF guard: only public http(s) pages may be fetched. Blocks loopback,
+// private, link-local and metadata-style IP literals plus non-http schemes.
+function isBlockedUrl(url) {
+  let u;
+  try { u = new URL(url); } catch { return true; }
+  if (!/^https?:$/.test(u.protocol)) return true;
+  const host = u.hostname.toLowerCase();
+  if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.internal') || host === '[::1]') return true;
+  const v4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (v4) {
+    const [a, b] = [Number(v4[1]), Number(v4[2])];
+    if (a === 10 || a === 127 || a === 0 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254)) return true;
+  }
+  return false;
+}
+
 async function fetchPage(url) {
+  if (isBlockedUrl(url)) throw new Error(`blocked by SSRF guard: ${url}`);
   const res = await withTimeout(fetch(url, {
     headers: { 'user-agent': USER_AGENT, accept: 'text/html,application/xhtml+xml' },
     redirect: 'follow',
@@ -230,4 +247,4 @@ async function investigate(rawQuery, log) {
   return evidence;
 }
 
-module.exports = { investigate, normalizeQuery, extractEvidence, stripHtml, extractDeveloperLinks, searchDeveloperDocs };
+module.exports = { investigate, normalizeQuery, extractEvidence, stripHtml, extractDeveloperLinks, searchDeveloperDocs, isBlockedUrl };

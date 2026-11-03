@@ -93,8 +93,18 @@ explicitly instead of guessing.
   layouts; the fallback is fetching known developer-site URL patterns.
 - Review timelines quoted for library guides come from provider-published
   estimates; actual review times vary.
-- Not covered: actually creating OAuth apps inside each provider console
-  (needs accounts and, for some, paid tiers), which the brief excludes.
+- Library guides are verified against provider documentation fetched on
+  2026-11-03; provider consoles were NOT driven end-to-end for every guide
+  (each guide carries a "How this was checked" note saying exactly this).
+- Verified on Linux with Node 22.23 (stdlib only, no native modules, no
+  platform-specific APIs). Not yet executed on Windows; nothing in the code
+  is platform-specific, but that claim is untested, not verified.
+- The SSRF guard blocks loopback/private/link-local fetch targets; public
+  deployment additionally needs secret storage for keys, rate limiting and
+  request bounds, which are out of scope for local review runs.
+- Gemini's free tier rate-limits under demand; the client retries with
+  backoff across fallback models, but a saturated API still fails visibly
+  (job status error) instead of silently degrading.
 
 ## API
 

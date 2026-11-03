@@ -68,5 +68,9 @@
       "url": "https://api.slack.com/authentication"
     }
   ],
-  "last_checked": "2026-11-03"
+  "last_checked": "2026-11-03",
+  "testing": {
+    "console_attempted": false,
+    "note": "Steps verified against official documentation fetched and read on 2026-11-03. No provider console was driven for this guide; actual in-console behavior may differ where docs lag the product."
+  }
 }
