@@ -30,3 +30,25 @@ What the docs omit or understate:
 
 Consequence for the guide: GitHub's "5-minute setup" reputation is accurate
 for dev credentials, and there is no production approval wait at all.
+
+
+## Linear (walkthrough 2026-11-03)
+
+Executed: Google sign-up -> forced onboarding wizard -> OAuth application created
+(Settings > API > New application) -> client ID + client secret issued.
+
+Ground-truth deltas vs docs-only research:
+- New accounts pass a forced onboarding wizard (profile, invite teammates,
+  connect GitHub, connect Slack, newsletter); every step has a Skip, and the
+  profile step pre-fills the Google account name.
+- The OAuth app form asks for: application name, developer name, developer URL
+  (required for PUBLIC apps only), description, redirect URIs (newline
+  separated), optional GitHub username (actor=app commit attribution), and
+  checkboxes for Public availability, client_credentials grant support, and
+  webhooks.
+- No approval, review, or waiting period for workspace-private apps: the
+  client ID is issued instantly and a client secret is auto-generated
+  (masked, rotatable). No sudo-style password re-confirmation (contrast
+  GitHub, which requires it for secret generation).
+- Apps default to "Private to this workspace"; making an app installable by
+  other workspaces is an explicit Public checkbox.
