@@ -252,7 +252,9 @@ function extractEvidence(html) {
     .filter((s) => s.length > 40 && s.length < 500)
     .filter((s) => /oauth|client id|client secret|redirect|callback|consent|scope|verif|review|approv|app registr|developer (account|portal|dashboard)|create (an )?app/i.test(s))
     .slice(0, 60);
-  return { title: stripHtml(title).trim().slice(0, 160), headings, sentences };
+  const links = [];
+  for (const m2 of html.matchAll(/(?:href="|\]\()(\/[^"')\s]+|https?:\/\/[^"')\s]+)/g)) { if (links.length < 120 && !links.includes(m2[1])) links.push(m2[1]); }
+  return { title: stripHtml(title).trim().slice(0, 160), headings, sentences, links };
 }
 
 // Candidate first-party URLs worth trying even without search results.
@@ -440,6 +442,34 @@ async function investigate(rawQuery, log, partialOut) {
     for (const f of found.slice(0, 4)) {
       evidence.pages.push(f);
       say(`Found OAuth documentation at ${f.url} (${strongSentences(f.sentences).length} relevant passages)`);
+    }
+    // Follow-through: OAuth reference pages usually link to the page that says
+    // how to CREATE the app (dashboard/manage/register/getting-started).
+    // Collect same-provider links from the best found pages and fetch them.
+    {
+      const follow = new Map();
+      for (const f of evidence.pages.slice().sort((a, b) => strongSentences(b.sentences).length - strongSentences(a.sentences).length).slice(0, 3)) {
+        for (const lk of (f.links || [])) {
+          let abs; try { abs = new URL(lk, f.url).toString().split('#')[0]; } catch { continue; }
+          if (!onApex(abs, apex) || seen.has(abs) || /\.(png|jpe?g|svg|gif|webp|css|js|json)$/i.test(abs)) continue;
+          const sc = (/manage|create|register|setup|set-up|getting-started|dashboard|app-?(settings|registration)|consent|scopes?/i.test(abs) ? 2 : 0) + (/oauth|auth|sign-in/i.test(abs) ? 1 : 0);
+          if (sc >= 2 && (!follow.has(abs) || follow.get(abs) < sc)) follow.set(abs, sc);
+        }
+      }
+      const ft = [...follow.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4).map((e) => e[0]);
+      if (ft.length) say(`Following ${ft.length} links to app-creation/management pages referenced by the OAuth docs`);
+      const fr = await Promise.allSettled(ft.map(async (u) => {
+        try { return { u, ...(await fetchPage(u.endsWith('.md') ? u : `${u}.md`, { anyText: true })) }; }
+        catch { return { u, ...(await fetchPage(u, { anyText: true })) }; }
+      }));
+      for (const r2 of fr) {
+        if (r2.status !== 'fulfilled') continue;
+        const facts = extractEvidence(r2.value.html);
+        if (strongSentences(facts.sentences).length < 2) continue;
+        seen.add(r2.value.u);
+        evidence.pages.push({ url: r2.value.finalUrl, requestedUrl: r2.value.u, ...facts });
+        say(`Found app-creation/management page ${r2.value.finalUrl} (${strongSentences(facts.sentences).length} relevant passages)`);
+      }
     }
     if (strongPassageCount(evidence.pages) < MIN_STRONG_PASSAGES) {
       try {

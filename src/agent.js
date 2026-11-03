@@ -102,7 +102,7 @@ async function runJob(job) {
       slug: `gen-${slugify(guide.app || job.query)}-${job.id.slice(0, 6)}`,
       app: String(guide.app || job.query).slice(0, 80),
       website: onEvidence(guide.website) ? guide.website : undefined,
-      console_url: onEvidence(guide.console_url) ? guide.console_url : null,
+      console_url: onEvidence(guide.console_url) && evidence.pages.some((p) => (p.links || []).includes(guide.console_url) || (p.sentences || []).some((x) => x.includes(guide.console_url)) || p.url === guide.console_url) ? guide.console_url : null,
       difficulty: guide.difficulty,
       summary: String(guide.summary || '').slice(0, 600),
       approval: guide.approval && typeof guide.approval === 'object' ? (() => {

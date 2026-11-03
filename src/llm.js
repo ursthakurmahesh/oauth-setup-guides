@@ -25,7 +25,7 @@ function detectBackend(env = process.env) {
 const SYSTEM_PROMPT = `You write OAuth app setup guides for developers as strict JSON.
 Given evidence extracted from a provider's official pages, produce ONE JSON object with exactly these fields:
 {
- "app": string, "website": string, "console_url": string|null,
+ "app": string, "website": string, "console_url": string|null (ONLY the page where a developer creates or registers the OAuth app, and ONLY if a fetched page states that URL; otherwise null - never a related product page),
  "difficulty": "easy"|"moderate"|"hard",
  "summary": string (2-3 sentences: how hard, how long, the main catch),
  "approval": {"required": true|false|"conditional"|"unknown" (use "unknown" when the fetched pages do not state approval requirements - never guess false), "typical_timeline": string, "notes": string},
@@ -44,7 +44,7 @@ function buildUserPrompt(evidence) {
     if (page.title) parts.push(`Title: ${page.title}`);
     if (page.headings.length) parts.push(`Headings: ${page.headings.join(' | ')}`);
     if (page.sentences.length) parts.push('Passages:');
-    for (const s of page.sentences.slice(0, 25)) parts.push(`- ${s}`);
+    for (const s of page.sentences.slice(0, 30)) parts.push(`- ${s}`);
     parts.push('');
   }
   if (!evidence.pages.length) parts.push('(No pages could be fetched; search result titles/URLs follow.)');
