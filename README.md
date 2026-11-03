@@ -25,6 +25,24 @@ Built as a take-home for the Composio APM (Integrations) role.
   uncertain. If no model backend is configured, the app returns the raw
   sourced investigation labeled as research, never a fake "guide".
 
+## Problem understanding: development vs production
+
+Creating an OAuth app is two different problems wearing one name. The
+**development-side** task - register an app in the provider console, get a
+client ID and secret, set redirect URIs - is usually self-serve and takes
+minutes. The **production-side** task - make the app usable by arbitrary
+users at scale - is where providers gate: Google's OAuth verification tiers
+(up to ~6 weeks for sensitive scopes), LinkedIn's product-based access,
+Spotify's 5-user development mode and org-only quota extension, Salesforce's
+Spring '26 connected-app restrictions, Asana's App Directory review, Linear's
+public-availability requirements. Most "how do I set up OAuth with X"
+content conflates the two, so developers budget for the console task and get
+surprised by the review queue. These guides separate them explicitly: every
+guide states the console steps, the approval/review requirement and its
+published timeline as distinct facts with distinct evidence badges, and the
+ground-truth walkthroughs (below) only claim the console-side work that was
+actually executed - never that a production review was cleared.
+
 ## Live demo
 
 https://oauth-setup-guides.onrender.com
@@ -108,10 +126,11 @@ against a fetched source is labeled with "source page fetched by server";
 items the sources do not settle (e.g. an approval requirement the docs never
 mention) are marked "unknown", not guessed.
 
-Agents also attempted setup directly where that was possible without creating
-real third-party apps: the GitHub OAuth app registration form was opened live
-in the provider console on 2026-11-03 and its fields match the GitHub guide
-(recorded in that guide's "How this was checked" note; no app was created).
+Agents also executed real ground-truth walkthroughs in provider consoles on
+2026-11-03 (see "Ground-truth audit" below): a GitHub OAuth app and a Linear
+OAuth application were actually created and issued client credentials, and
+the observed deltas against the docs are recorded in
+`docs/ground-truth-walkthroughs.md` and `data/walkthroughs.json`.
 
 A second agent pass reviewed the codebase itself: an independent frontier
 model (Claude Sonnet, consulted through a public model arena) did a full
@@ -142,6 +161,24 @@ that a human walked the console. Treat generated guides as docs-derived.
 Other known gaps: docs that need a headless browser are not read, and the
 agent/human split is only marked covered when a documented step says so.
 
+## Ground-truth audit
+
+Two providers were driven end-to-end through their real consoles on
+2026-11-03 (agent-operated browser, dedicated test credentials). Deltas found
+against the documentation are in `docs/ground-truth-walkthroughs.md`; the
+badge records consumed by guide pages are in `data/walkthroughs.json`.
+
+| Provider | Executed (not simulated) | Deltas the docs did not state |
+| --- | --- | --- |
+| GitHub | OAuth app registered; client ID issued; client secret generated | Secret generation forces a sudo-mode password re-confirmation; credential issuance is instant once past it; OAuth App (no review) vs GitHub App/Marketplace listing (reviewed) are different products the docs present side by side |
+| Linear | Workspace created via Google sign-in; OAuth application registered; client ID + auto-issued secret received; redirect URI registered | Forced onboarding wizard precedes any settings access (every step skippable); no sudo re-confirmation for secret issuance; apps default to "Private to this workspace" - public installation is an explicit checkbox requiring a developer URL; public/production policy is separate from private creation and is not proven by this walkthrough |
+
+The three-tier evidence badges on every guide page reflect this scoping:
+**Verified by Testing** (only for what a walkthrough executed: app
+registration and credential issuance), **Backed by Official Docs** (a fetched
+official page carries a verbatim supporting quote), **Uncertain / Unverified**
+(everything else; approval wait times are never claimed as tested).
+
 ## Limitations
 
 - The library demonstrates 8 apps, not 100; the schema and pipeline scale to
@@ -149,13 +186,27 @@ agent/human split is only marked covered when a documented step says so.
 - Live synthesis quality depends on the configured model; weak evidence (a
   provider with thin docs) yields a thinner guide, and the model is
   constrained to the fetched evidence only.
-- Search-based doc discovery can miss providers with unusual documentation
-  layouts; the fallback is fetching known developer-site URL patterns.
+- Doc discovery: bare brand names are resolved to the provider apex by
+  read-only homepage probes with identity validation (brand in title/H1 plus
+  a credible developer-docs crosslink), because search-result quality varies
+  by network - DuckDuckGo bot-screens datacenter IPs and Bing's datacenter
+  result set can omit the provider entirely (observed live: bare "Linear"
+  once returned 30 unrelated hits). Engines still run as supplementary
+  evidence; the evidence gate applies regardless.
+- JS-rendered (SPA) documentation is not readable by static fetching. Example
+  found live: TickTick's developer portal is a client-rendered app, so a
+  "TickTick" investigation validates ticktick.com and developer.ticktick.com
+  but returns research-only rather than fabricating a guide from an empty
+  shell. A headless-browser evidence fetcher would close this.
 - Review timelines quoted for library guides come from provider-published
   estimates; actual review times vary.
 - Library guides are verified against provider documentation fetched on
-  2026-11-03; provider consoles were NOT driven end-to-end for every guide
-  (each guide carries a "How this was checked" note saying exactly this).
+  2026-11-03; consoles were driven end-to-end only for the walkthrough
+  providers in the ground-truth audit (each guide carries a "How this was
+  checked" note saying exactly what was and was not exercised).
+- Generated guides' scopes sections can be thin when no official scope
+  reference page was in the fetched evidence; the coverage gate reports the
+  slot as not-found instead of letting the model fill it from memory.
 - Tests pass in CI on both ubuntu-latest and windows-latest with Node 22
   (GitHub Actions matrix, see .github/workflows/test.yml). stdlib only, no
   native modules, no platform-specific APIs. Developed on Linux Node 22.23.

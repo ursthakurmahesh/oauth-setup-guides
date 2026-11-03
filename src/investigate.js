@@ -287,6 +287,7 @@ async function probeBrandApex(name) {
 
       const linkRe = /href=["']([^"']+)["']/gi;
       let hasCredibleCrosslink = false;
+      const validatedDocs = [];
       let m;
       while ((m = linkRe.exec(html)) !== null) {
         try {
@@ -297,6 +298,7 @@ async function probeBrandApex(name) {
           if (s.includes('/docs') || s.includes('/developer') || s.includes('/api')
             || s.includes('docs.') || s.includes('developer.')) {
             hasCredibleCrosslink = true;
+            validatedDocs.push(resolved);
             break;
           }
         } catch { /* bad link */ }
@@ -319,12 +321,12 @@ async function probeBrandApex(name) {
             }
             const dTitle = (d.html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [null, ''])[1];
             const dTitleText = dTitle ? stripHtml(dTitle).toLowerCase() : '';
-            if (dTitleText.includes(slug)) { hasCredibleCrosslink = true; break; }
+            if (dTitleText.includes(slug)) { validatedDocs.push(d.finalUrl || docsUrl); hasCredibleCrosslink = true; break; }
             const backRe = /href=["']([^"']+)["']/gi;
             let bm;
             while ((bm = backRe.exec(d.html)) !== null) {
               try {
-                if (apexOf(new URL(new URL(bm[1], docsUrl).href).hostname) === apex) { hasCredibleCrosslink = true; break; }
+                if (apexOf(new URL(new URL(bm[1], docsUrl).href).hostname) === apex) { validatedDocs.push(d.finalUrl || docsUrl); hasCredibleCrosslink = true; break; }
               } catch { /* bad link */ }
             }
             if (hasCredibleCrosslink) break;
@@ -332,7 +334,7 @@ async function probeBrandApex(name) {
         }
       }
       if (!hasCredibleCrosslink) return null;
-      return { apex, pageUrl: res.finalUrl || url, html };
+      return { apex, pageUrl: res.finalUrl || url, html, docsUrls: validatedDocs };
     } catch { return null; }
   }
 
@@ -369,11 +371,12 @@ async function searchDeveloperDocs(name, domain, extraTerms = []) {
   let firstParty = [];
   if (probed) {
     const direct = extractDeveloperLinks(probed.html, probed.pageUrl);
-    firstParty = mergeResults([[{ url: probed.pageUrl, title: `${name} homepage` }], direct]);
+    const probedDocs = (probed.docsUrls || []).map((u) => ({ url: u, title: `${name} developer docs` }));
+    firstParty = mergeResults([[{ url: probed.pageUrl, title: `${name} homepage` }], probedDocs, direct]);
   }
   const merged = mergeResults([firstParty, searchResults]);
   if (!merged.length) throw new Error('all search engines unreachable and brand probing found nothing');
-  return merged;
+  return { results: merged, probedApex: probed ? probed.apex : null, probedDocs: probed ? (probed.docsUrls || []) : [] };
 }
 
 // Pull first-party developer/docs links out of a provider's own homepage.
@@ -536,7 +539,10 @@ async function investigate(rawQuery, log, partialOut) {
     // Case C: beyond the provided page, look for what one page rarely states -
     // approval wait times and gotchas.
     const extra = query.kind === 'docs_url' ? [`${query.name} OAuth approval wait time gotchas`] : [];
-    evidence.search_results = await searchDeveloperDocs(query.name, query.domain, extra);
+    const searchOutcome = await searchDeveloperDocs(query.name, query.domain, extra);
+    evidence.search_results = searchOutcome.results;
+    evidence.probed_apex = searchOutcome.probedApex;
+    evidence.probed_docs = searchOutcome.probedDocs;
     say(`Search returned ${evidence.search_results.length} candidate doc links`);
   } catch (err) {
     say(`Search failed (${err.message}); falling back to direct URLs`);
@@ -545,11 +551,20 @@ async function investigate(rawQuery, log, partialOut) {
   // Rank search candidates; for a domain query keep only first-party hosts.
   // For a bare brand name, infer the provider's apex from the hits so the
   // full first-party machinery (probes, doc indexes, seeds) also runs.
+  // A homepage-probe-validated apex is authoritative identity evidence; the
+  // search-hit inference is only a fallback and can pick lookalike domains.
   let apex = query.apex || (query.domain ? apexOf(query.domain) : null);
+  if (!apex && evidence.probed_apex) {
+    apex = evidence.probed_apex;
+    say(`Resolved "${query.name}" to provider domain ${apex} via validated homepage probe`);
+  }
   if (!apex) {
     apex = inferApexFromResults(evidence.search_results, query.name);
     if (apex) say(`Resolved "${query.name}" to provider domain ${apex} from search results`);
   }
+  // Feed the resolved apex into the first-party machinery (well-known path
+  // and developer-subdomain probes) for bare-name inputs too.
+  if (!query.domain && apex) query.domain = apex;
   let ranked = evidence.search_results
     .map((r) => ({ url: r.url, score: docScore(r.url, query) }))
     .sort((a, b) => b.score - a.score);
@@ -561,6 +576,7 @@ async function investigate(rawQuery, log, partialOut) {
   }
   const targets = [];
   for (const r of ranked.slice(0, 4)) targets.push(r.url);
+  for (const u of (evidence.probed_docs || [])) if (!targets.includes(u)) targets.push(u);
   for (const u of candidateUrls(query)) if (!targets.includes(u)) targets.push(u);
   const extraTargets = [];
   const finalTargets = targets.slice(0, 6);
