@@ -45,9 +45,9 @@ function guideSummary(g) {
 // Server-rendered shareable guide page (no JS needed to read it).
 function renderGuidePage(g) {
   const badge = g.origin === 'generated' ? '<span class="tag tag-gen">agent-generated</span>' : '<span class="tag">library</span>';
-  const steps = g.steps.map((s, i) => `
+  const steps = g.steps.map((s) => `
     <li>
-      <strong>${i + 1}. ${escapeHtml(s.title)}</strong>
+      <strong>${escapeHtml(s.title)}</strong>
       <span class="badge ${s.verified ? 'ok' : 'warn'}">${s.verified ? 'checked against source' : 'not independently verified'}</span>
       ${s.detail ? `<p>${escapeHtml(s.detail)}</p>` : ''}
       ${s.source ? `<p class="src"><a href="${escapeHtml(s.source)}">source</a></p>` : ''}
