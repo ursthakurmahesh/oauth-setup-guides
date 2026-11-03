@@ -644,6 +644,12 @@ async function investigate(rawQuery, log, partialOut) {
     // Curated official docs hosts on a different apex (e.g. LinkedIn's docs on
     // Microsoft Learn) are probed like first-party hosts.
     for (const h of (OFFICIAL_DOC_HOSTS[apex] || [])) hosts.add(h);
+    // Same-apex help centers (support./help.) often carry app-creation steps
+    // the developer portal gates behind login (Gemini Pro review, 2026-11-03;
+    // e.g. Airtable's OAuth articles live on its support site). Identity is
+    // still validated by onApex(); content passes the same evidence gates.
+    hosts.add(`support.${apex}`);
+    hosts.add(`help.${apex}`);
     const seen = new Set(evidence.pages.map((pg) => pg.url));
     const probes = [];
     for (const h of hosts) for (const path of OAUTH_PATHS) probes.push(`https://${h}${path}`);
