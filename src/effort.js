@@ -24,7 +24,7 @@ function estimateEffort(guide) {
   const range = lo < 90 && hi < 90 ? `${lo}-${hi} minutes` : `${fmtMinutes(lo)}-${fmtMinutes(hi)}`;
   return {
     range,
-    text: `roughly ${range} of hands-on setup (agent estimate from the difficulty rubric and ${steps} documented steps - not measured)`,
+    text: `roughly ${range} of hands-on setup (agent estimate from the difficulty rubric and ${steps} documented steps; provider docs do not publish setup times)`,
   };
 }
 

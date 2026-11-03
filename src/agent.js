@@ -20,7 +20,8 @@ const SYNTH_RETRY_DELAY_MS = 75000;
 const MAX_SYNTH_RETRIES = 8;
 
 function isRetriableModelError(err) {
-  return /HTTP (404|429|5\d\d)/.test(err.message) || /high demand|UNAVAILABLE|timed out|TimeoutError|aborted/i.test(err.message);
+  // 404 is permanent (wrong model id) - no retry. 429/5xx/capacity are transient.
+  return /HTTP (429|5\d\d)/.test(err.message) || /high demand|UNAVAILABLE|timed out|TimeoutError|aborted/i.test(err.message);
 }
 
 function slugify(text) {
@@ -115,27 +116,31 @@ async function runJob(job) {
 // MAX_SYNTH_RETRIES failures does it end as an honest research_only result.
 async function synthesizeAndPublish(job, evidence, say) {
   let backend, guide;
-  try {
-    say(`Synthesizing guide with ${detectBackend().label}`);
-    const r = await synthesize(evidence);
-    backend = r.backend;
-    guide = r.guide;
-  } catch (err) {
-    job.synth_failures = (job.synth_failures || 0) + 1;
-    if (job.synth_failures <= MAX_SYNTH_RETRIES && isRetriableModelError(err)) {
-      say(`Temporary model error (${err.message.slice(0, 120)}); the investigation is kept and synthesis retries automatically in ~75s (retry ${job.synth_failures} of ${MAX_SYNTH_RETRIES})`);
-      const t = setTimeout(() => { synthesizeAndPublish(job, evidence, say).catch((e) => { job.status = 'error'; job.error = e.message; }); }, SYNTH_RETRY_DELAY_MS);
-      if (t.unref) t.unref();
+  // Awaited retry loop: runJob stays pending for the whole retry window, so
+  // callers observe the true terminal state instead of resolving early.
+  for (;;) {
+    try {
+      say(`Synthesizing guide with ${detectBackend().label}`);
+      const r = await synthesize(evidence);
+      backend = r.backend;
+      guide = r.guide;
+      break;
+    } catch (err) {
+      job.synth_failures = (job.synth_failures || 0) + 1;
+      if (job.synth_failures <= MAX_SYNTH_RETRIES && isRetriableModelError(err)) {
+        say(`Temporary model error (${err.message.slice(0, 120)}); the investigation is kept and synthesis retries automatically in ~75s (retry ${job.synth_failures} of ${MAX_SYNTH_RETRIES})`);
+        await new Promise((resolve) => setTimeout(resolve, SYNTH_RETRY_DELAY_MS));
+        continue;
+      }
+      job.status = 'research_only';
+      job.research = {
+        note: `Synthesis failed ${job.synth_failures > 1 ? `${job.synth_failures} times over several minutes` : ''} (${err.message.slice(0, 200)}); the investigation results are preserved below.`,
+        search_results: [],
+        pages: evidence.pages.map((p) => ({ url: p.url, title: p.title, headings: p.headings })),
+      };
+      say(`Synthesis failed after ${job.synth_failures} attempt(s), evidence preserved: ${err.message}`);
       return;
     }
-    job.status = 'research_only';
-    job.research = {
-      note: `Synthesis failed ${job.synth_failures > 1 ? `${job.synth_failures} times over several minutes` : ''} (${err.message.slice(0, 200)}); the investigation results are preserved below.`,
-      search_results: [],
-      pages: evidence.pages.map((p) => ({ url: p.url, title: p.title, headings: p.headings })),
-    };
-    say(`Synthesis failed after ${job.synth_failures} attempt(s), evidence preserved: ${err.message}`);
-    return;
   }
   try {
     const fetchedHosts = new Set(evidence.pages.map((p) => { try { return new URL(p.url).hostname.replace(/^www\./, ''); } catch { return ''; } }));
@@ -262,9 +267,15 @@ async function synthesizeAndPublish(job, evidence, say) {
     say(`Guide ready: /guide/${candidate.slug}`);
     pushGenerated(candidate).then((ok) => pushLog(job, ok ? 'Guide committed to the repository so its link survives restarts' : 'Guide kept in memory only; its link may not survive a restart')).catch(() => {});
   } catch (err) {
-    job.status = 'error';
-    job.error = err.message;
-    say(`Failed: ${err.message}`);
+    // Publishing/validation failed after a successful synthesis: preserve the
+    // investigation rather than dropping to a bare error.
+    job.status = 'research_only';
+    job.research = {
+      note: `Publishing failed (${err.message.slice(0, 200)}); the investigation results are preserved below.`,
+      search_results: [],
+      pages: evidence.pages.map((p) => ({ url: p.url, title: p.title, headings: p.headings })),
+    };
+    say(`Failed, evidence preserved: ${err.message}`);
   }
 }
 

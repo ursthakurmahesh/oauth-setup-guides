@@ -121,7 +121,8 @@ test('estimateEffort labels a rubric-based estimate, never a measurement', () =>
   const easy = estimateEffort({ difficulty: 'easy', steps: [1, 2, 3] });
   assert.match(easy.text, /10-20 minutes/);
   assert.match(easy.text, /estimate/);
-  assert.match(easy.text, /not measured/);
+  assert.match(easy.text, /estimate/);
+  assert.ok(!/not measured/i.test(easy.text));
   const manySteps = estimateEffort({ difficulty: 'easy', steps: [1, 2, 3, 4, 5, 6, 7] });
   assert.match(manySteps.text, /15-30 minutes/);
   const hard = estimateEffort({ difficulty: 'hard', steps: [1, 2, 3, 4, 5, 6, 7] });
