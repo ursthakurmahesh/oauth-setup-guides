@@ -49,9 +49,15 @@ https://oauth-setup-guides.onrender.com
 
 Hosted on Render's free tier (no card). Caveats of the free tier: the service
 sleeps after 15 idle minutes and takes about a minute to wake (Render shows a
-loading page), and generated guides live on an ephemeral filesystem, so they
-can disappear when the service restarts; the 8-guide library ships with the
-code and is always present. The deployment stores the model key as a secret
+loading page). The 8-guide curated library ships with the code and is always
+present; the deployment currently lists 14 guides in total - the library plus
+6 agent-generated guides. Generated guides are written to `data/generated/`,
+which is durable on a normal machine. Render's filesystem is ephemeral, so
+when the optional `GITHUB_TOKEN` and `GITHUB_REPO` env vars are configured the
+service also syncs every generated guide to a `generated-data` git branch and
+restores them on boot - verified live on 2026-11-03 (a guide generated before
+a redeploy was served after it). Without those two variables, a host with an
+ephemeral filesystem loses generated guides on restart. The deployment stores the model key as a secret
 environment variable, rate-limits requests (240 req/min per IP, 5 live
 generations per 10 min per IP), caps query and page sizes, and blocks
 internal-network fetch targets (SSRF guard).
@@ -112,8 +118,9 @@ labeled as research-only, with instructions to configure a backend.
 - **No paid APIs anywhere.** Model backends are free-tier or local; the
   investigation layer uses public search and the providers' own pages.
 - **Generated guides persist** under `data/generated/` so a live demo
-  produces a durable, shareable artifact (on the free host this storage is
-  ephemeral - see Live demo caveats).
+  produces a durable, shareable artifact; with `GITHUB_TOKEN`/`GITHUB_REPO`
+  set they also sync to a `generated-data` branch and survive redeploys on
+  ephemeral hosts (see Live demo caveats).
 
 ## How agents were used
 
@@ -143,7 +150,12 @@ degradation to preserved research, and the rate limits above.
 1. **Discovery.** Search plus first-party URL guesses, then the provider's own
    `llms.txt` / `sitemap.xml`, common OAuth doc paths, markdown twins of doc
    pages, and links from the OAuth pages to their app-creation/management
-   pages. Only the provider's own domain counts as evidence.
+   pages. Only the provider's own domain counts as evidence, plus a small
+   hand-curated set of official hosts the provider itself operates on a
+   different apex (e.g. LinkedIn's docs on learn.microsoft.com, Shopify's on
+   shopify.dev) and curated official entry-point seeds for providers whose
+   docs are not discoverable from their apex (Asana, Dropbox, LinkedIn);
+   every fetched page passes the same extraction and evidence gates.
 2. **Evidence gate.** Fewer than 6 OAuth-mechanics passages means no guide:
    the job ends as an "incomplete investigation" listing what was reviewed
    (Dropbox's docs are not fetchable with plain HTTP, so it ends this way).
@@ -163,14 +175,17 @@ agent/human split is only marked covered when a documented step says so.
 
 ## Ground-truth audit
 
-Two providers were driven end-to-end through their real consoles on
-2026-11-03 (agent-operated browser, dedicated test credentials). Deltas found
+Two providers were driven through OAuth app registration and credential
+issuance in their real consoles on 2026-11-03 (agent-operated browser,
+dedicated test credentials). The OAuth authorization-code/token exchange was
+not exercised; the audit covers console-side registration and credential
+issuance only. Deltas found
 against the documentation are in `docs/ground-truth-walkthroughs.md`; the
 badge records consumed by guide pages are in `data/walkthroughs.json`.
 
 | Provider | Executed (not simulated) | Deltas the docs did not state |
 | --- | --- | --- |
-| GitHub | OAuth app registered; client ID issued; client secret generated | Secret generation forces a sudo-mode password re-confirmation; credential issuance is instant once past it; OAuth App (no review) vs GitHub App/Marketplace listing (reviewed) are different products the docs present side by side |
+| GitHub | OAuth app registered; client ID issued; client secret generated | Secret generation forces a sudo-mode password re-confirmation (the walkthrough held the account password; an agent without it cannot pass this step); credential issuance is instant once past it; GitHub's docs present OAuth Apps and reviewed GitHub App/Marketplace listings side by side - only the OAuth App path was exercised and it carried no review step |
 | Linear | Workspace created via Google sign-in; OAuth application registered; client ID + auto-issued secret received; redirect URI registered | Forced onboarding wizard precedes any settings access (every step skippable); no sudo re-confirmation for secret issuance; apps default to "Private to this workspace" - public installation is an explicit checkbox requiring a developer URL; public/production policy is separate from private creation and is not proven by this walkthrough |
 
 The three-tier evidence badges on every guide page reflect this scoping:
@@ -178,6 +193,24 @@ The three-tier evidence badges on every guide page reflect this scoping:
 registration and credential issuance), **Backed by Official Docs** (a fetched
 official page carries a verbatim supporting quote), **Uncertain / Unverified**
 (everything else; approval wait times are never claimed as tested).
+
+## Live generation test battery (2026-11-03, deployed service)
+
+The three input forms from the brief were each exercised against the live
+deployment; results below are actual job outcomes, not unit tests.
+
+| Input case | Input | Actual result |
+| --- | --- | --- |
+| A: app name | `Linear` | Guide generated (job ea1159470f18); 5/6 evidence slots verified against fetched pages; approval wait reported as not-found-in-sources |
+| A: app name | `TickTick` | No guide - correct refusal: the developer portal is a JS-only app with no readable OAuth text; the job ended research-only instead of fabricating |
+| B: homepage URL | `calendly.com` | Guide generated (job 20c0ac46e3ec); 5/6 slots verified incl. scopes and Calendly's mandatory-PKCE requirement |
+| B: homepage URL | `pinterest.com` | Investigation fixed live during this session: the first run found 0 passages because ~770KB of inline CSS/JS pushed the article past the page read cap; after the non-content-stripping fix the investigation found real OAuth-flow documentation (7 passages), but the coverage gate then correctly refused to publish - the fetched evidence described the OAuth flow, not app creation, so the create_app slot stayed not_found. Remaining gap: reaching app-creation pages on doc-index-heavy portals |
+| C: docs link | `https://developers.notion.com/docs/authorization` | Guide generated (job b6c95124dab5); 4/6 slots verified |
+| Persistence | redeploy with wiped filesystem | Guide generated before the redeploy (gen-linear-ea1159) was served after it, restored from the `generated-data` branch |
+
+There is no universal any-app guarantee: providers whose documentation needs
+a headless browser, or is otherwise unreadable, end as research-only by
+design.
 
 ## Limitations
 

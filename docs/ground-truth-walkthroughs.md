@@ -3,7 +3,7 @@
 Real console attempts behind the guide library. Each row feeds the README
 ground-truth audit and the "verified by testing" badge tier.
 
-## GitHub (2026-11-03) - walked through to a working app + client secret
+## GitHub (2026-11-03) - walked through app registration + client credential issuance
 
 Created a real OAuth app ("OAuth Guides Walkthrough Test") on a free GitHub
 account: https://github.com/settings/applications/3989320 (Client ID issued
@@ -22,14 +22,18 @@ What the docs omit or understate:
 - Scopes are not configured in the console at all; they are requested at
   authorize-time. First-time console users look for a scopes section that
   does not exist.
-- No user cap, no verification program, no app review for OAuth Apps
-  (unlike Google). Learned by absence: nothing in the console or docs gates
-  external users.
+- In this single-account walkthrough no user cap, verification program, or
+  app review gate was encountered for an OAuth App (contrast Google's
+  documented verification program). One console observation is not proof
+  none exists; GitHub's docs reserve review for GitHub Apps and Marketplace
+  listings, a different product that was not exercised.
 - The only client secret cannot be deleted without generating a
   replacement first (fine print on the settings page).
 
-Consequence for the guide: GitHub's "5-minute setup" reputation is accurate
-for dev credentials, and there is no production approval wait at all.
+Consequence for the guide: the "5-minute setup" reputation held for dev
+credentials in this walkthrough, and no production approval wait was
+encountered (scope: one OAuth App registration; Marketplace/GitHub App review
+paths were not exercised).
 
 
 ## Linear (walkthrough 2026-11-03)
