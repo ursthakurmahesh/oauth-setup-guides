@@ -298,6 +298,10 @@ function hostOf(url) {
 // discoverable from their own apex (seed URLs only - the content is still
 // fetched, extracted and gated like any other evidence).
 const OFFICIAL_DOC_SEEDS = {
+  'asana.com': [
+    'https://developers.asana.com/docs/oauth',
+    'https://developers.asana.com/docs/getting-started',
+  ],
   'dropbox.com': [
     'https://www.dropbox.com/developers/documentation/http/documentation',
     'https://www.dropbox.com/developers/reference/oauth-guide',
