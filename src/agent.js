@@ -163,7 +163,10 @@ async function runJob(job) {
       const c = (guide.coverage || {})[slot] || {};
       const q = norm(c.quote);
       const blob = pageBlobs.find((b) => b.url === c.url) || null;
-      const ok = c.status === 'covered' && q.length >= 25 && ((blob && blob.text.includes(q)) || pageBlobs.some((b) => b.text.includes(q)));
+      let ok = c.status === 'covered' && q.length >= 25 && ((blob && blob.text.includes(q)) || pageBlobs.some((b) => b.text.includes(q)));
+      // Intent check: a create_app quote must actually describe creating or
+      // registering an app, not merely mention OAuth (consumer-side docs).
+      if (slot === 'create_app' && ok && !/creat|regist|new app|add (a|an|the)|set up/.test(q)) ok = false;
       coverage[slot] = ok ? { status: 'verified', url: (blob && blob.text.includes(q)) ? blob.url : (pageBlobs.find((b) => b.text.includes(q)) || {}).url, quote: String(c.quote).slice(0, 240) } : { status: 'not_found' };
     }
     candidate.coverage = coverage;

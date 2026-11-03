@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 
 const { validateGuide } = require('../src/guideSchema');
-const { normalizeQuery, extractEvidence } = require('../src/investigate');
+const { normalizeQuery, extractEvidence, onApex } = require('../src/investigate');
 const { detectBackend, buildUserPrompt } = require('../src/llm');
 const { guideToMarkdown } = require('../src/markdown');
 const { listGuides, getGuide, searchGuides } = require('../src/store');
@@ -103,4 +103,14 @@ test('strongPassageCount counts only OAuth-mechanics sentences', () => {
   const { strongPassageCount } = require('../src/investigate');
   const pages = [{ sentences: ['Create an OAuth app and copy the client secret.', 'Our pricing is simple and fair for teams of all sizes.'] }];
   assert.equal(strongPassageCount(pages), 1);
+});
+
+test('onApex accepts curated official docs hosts on a different apex, nothing else', () => {
+  assert.equal(onApex('https://learn.microsoft.com/linkedin/marketing/', 'linkedin.com'), true);
+  assert.equal(onApex('https://shopify.dev/docs/apps/auth', 'shopify.com'), true);
+  assert.equal(onApex('https://developers.facebook.com/docs', 'facebook.com'), true); // same apex already
+  assert.equal(onApex('https://api.slack.com/authentication', 'slack.com'), true); // same apex already
+  assert.equal(onApex('https://learn.microsoft.com/anything', 'figma.com'), false);
+  assert.equal(onApex('https://evil-oauth-guides.example.com', 'linkedin.com'), false);
+  assert.equal(onApex('https://notlearn.microsoft.com', 'linkedin.com'), false);
 });

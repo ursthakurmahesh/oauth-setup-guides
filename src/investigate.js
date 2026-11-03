@@ -290,9 +290,22 @@ function hostOf(url) {
   try { return new URL(url).hostname.toLowerCase(); } catch { return ''; }
 }
 
+// Official developer/docs hosts that live on a DIFFERENT apex than the
+// provider's own domain. Curated by hand: only hosts the provider itself
+// operates for its developer documentation. This is not an open door for
+// third-party evidence - any host not listed here still must be on-apex.
+const OFFICIAL_DOC_HOSTS = {
+  'linkedin.com': ['learn.microsoft.com'],
+  'shopify.com': ['shopify.dev'],
+  'notion.so': ['notion.com'],
+  'twitter.com': ['x.com', 'developer.twitter.com'],
+  'x.com': ['twitter.com', 'developer.x.com'],
+};
+
 function onApex(url, apex) {
   const h = hostOf(url).replace(/^www\./, '');
-  return h === apex || h.endsWith(`.${apex}`);
+  if (h === apex || h.endsWith(`.${apex}`)) return true;
+  return (OFFICIAL_DOC_HOSTS[apex] || []).some((m) => h === m || h.endsWith(`.${m}`));
 }
 
 function docScore(url, query) {
