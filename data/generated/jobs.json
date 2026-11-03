@@ -65,10 +65,10 @@
   "95e474095cf5": {
     "id": "95e474095cf5",
     "query": "x.com",
-    "status": "running",
+    "status": "research_only",
     "slug": null,
     "error": null,
     "created_at": "2026-11-03T19:09:24.866Z",
-    "finished_at": null
+    "finished_at": "2026-11-03T19:12:31.578Z"
   }
 }
