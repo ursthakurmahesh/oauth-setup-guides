@@ -25,3 +25,21 @@ test('stripNonContent keeps visible article text and drops script/style/svg/temp
   assert.ok(!out.includes('enable js'));
   assert.ok(!out.includes('hidden'));
 });
+
+test('stripHtml decodes hex and numeric entities so verbatim quotes match', () => {
+  const { stripHtml } = require('../src/investigate.js');
+  assert.strictEqual(stripHtml('<p>Configure your app&#x27;s redirect URI for OAuth</p>').trim(),
+    "Configure your app's redirect URI for OAuth");
+  assert.strictEqual(stripHtml('<p>Register the app&#39;s client secret</p>').trim(),
+    "Register the app's client secret");
+});
+
+test('verbatim gate normalization: real entity-mangled quote matches, invented quote does not', () => {
+  const { stripHtml } = require('../src/investigate.js');
+  const norm = (t) => String(t || '').toLowerCase().replace(/\s+/g, ' ').replace(/[^a-z0-9 ]/g, '').trim();
+  const pageText = norm(stripHtml('<p>The value given for redirect_uri during OAuth authorization will be matched against the redirect URIs listed in your app&#x27;s profile.</p>'));
+  const realQuote = norm("The value given for redirect_uri during OAuth authorization will be matched against the redirect URIs listed in your app's profile.");
+  const inventedQuote = norm('Pinterest requires manual approval before any OAuth app can go live in production.');
+  assert.ok(pageText.includes(realQuote), 'real quote with entities must match');
+  assert.ok(!pageText.includes(inventedQuote), 'invented quote must NOT match');
+});

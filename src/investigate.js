@@ -81,6 +81,10 @@ function stripHtml(html) {
     .replace(/<[^>]+>/g, ' ')
     .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&nbsp;/g, ' ')
+    // Numeric/hex character references (e.g. Pinterest emits &#x27; for ').
+    // Decoding here keeps verbatim-quote matching honest across platforms.
+    .replace(/&#x([0-9a-fA-F]{1,6});/g, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&#(\d{1,7});/g, (_, d) => String.fromCodePoint(parseInt(d, 10)))
     .replace(/[ \t]+/g, ' ');
 }
 
@@ -669,7 +673,7 @@ async function investigate(rawQuery, log, partialOut) {
        }
       }
     }
-    const idxTargets = [...cands.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map((e) => e[0]);
+    const idxTargets = [...cands.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map((e) => e[0]);
     if (idxTargets.length) say(`Provider doc index lists ${cands.size} auth-related pages; fetching the top ${idxTargets.length}`);
     const idxSet = new Set(idxTargets);
     for (const u of idxTargets) probes.unshift(u);
