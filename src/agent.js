@@ -6,7 +6,7 @@
 
 const crypto = require('crypto');
 const { investigate, strongPassageCount, MIN_STRONG_PASSAGES } = require('./investigate');
-const { synthesize, detectBackend } = require('./llm');
+const { synthesize, detectBackend, passageIndex } = require('./llm');
 const { validateGuide } = require('./guideSchema');
 const { saveGenerated, getGuide } = require('./store');
 const { pushGenerated } = require('./persist');
@@ -236,9 +236,19 @@ function buildCandidate(job, evidence, guide) {
   const norm = (t) => String(t || '').toLowerCase().replace(/\s+/g, ' ').replace(/[^a-z0-9 ]/g, '').trim();
   const pageBlobs = evidence.pages.map((p) => ({ url: p.url, text: norm(`${p.title || ''} ${(p.headings || []).join(' ')} ${(p.sentences || []).join(' ')}`) }));
   const SLOTS = ['create_app', 'credentials', 'redirect_uri', 'scopes', 'approval', 'agent_human'];
+  // Citation-by-reference: when the model cites a numbered passage [Pn] from
+  // the prompt, the server substitutes the exact fetched sentence as the
+  // quote. The verbatim gate below still runs on that real evidence text, so
+  // a paraphrase can never pass - but a correct citation is no longer failed
+  // by retyping differences. A not_found slot is never resurrected this way.
+  const passageRefs = new Map(passageIndex(evidence).map((r) => [r.id, r]));
   const coverage = {};
   for (const slot of SLOTS) {
-    const c = (guide.coverage || {})[slot] || {};
+    let c = (guide.coverage || {})[slot] || {};
+    const ref = passageRefs.get(String(c.passage || '').trim().toUpperCase());
+    if (ref && c.status === 'covered') {
+      c = { ...c, quote: ref.sentence, url: ref.url };
+    }
     const q = norm(c.quote);
     const blob = pageBlobs.find((b) => b.url === c.url) || null;
     let ok = c.status === 'covered' && q.length >= 25 && ((blob && blob.text.includes(q)) || pageBlobs.some((b) => b.text.includes(q)));
@@ -421,4 +431,4 @@ function agentStatus() {
   };
 }
 
-module.exports = { startGeneration, getJob, agentStatus, restoreJobEntry };
+module.exports = { startGeneration, getJob, agentStatus, restoreJobEntry, buildCandidate };

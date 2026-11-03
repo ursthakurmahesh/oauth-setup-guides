@@ -36,23 +36,44 @@ Given evidence extracted from a provider's official pages, produce ONE JSON obje
  "sources": [{"title": string, "url": string}],
  "coverage": {"create_app": SLOT, "credentials": SLOT, "redirect_uri": SLOT, "scopes": SLOT, "approval": SLOT, "agent_human": SLOT}
 }
-SLOT = {"status": "covered"|"not_found", "quote": string (a VERBATIM passage copied from one fetched page that supports this slot; "" if not_found), "url": string (that page)}
+SLOT = {"status": "covered"|"not_found", "passage": string (the [Pn] identifier of the numbered passage that supports this slot; "" if not_found), "quote": string (the SAME passage copied verbatim; "" if not_found), "url": string (that page)}
 Slots: create_app = how a developer creates/registers the OAuth app or integration; credentials = where client id/secret come from; redirect_uri = how the redirect/callback URL is set; scopes = how scopes/permissions are chosen; approval = whether review/approval is required and how long it takes; agent_human = a documented step that needs a human (login, consent, review submission).
-Use status "not_found" honestly when no fetched passage supports a slot. Never paraphrase a quote.
+Use status "not_found" honestly when no fetched passage supports a slot. Never paraphrase a quote. Always fill "passage" with the exact [Pn] id of the passage your quote comes from.
 Difficulty rubric (apply it, do not go by feel): easy = no review/approval and 4 or fewer dashboard steps; moderate = 5+ steps, extra verification, or conditional approval; hard = mandatory review/audit or business verification, or approval timing the docs call long. If approval is unknown, pick the level the steps alone justify and say so in summary.
 agent_can_do = setup work an agent can prepare or do for the developer (drafting app name/description/redirect URLs, checking scopes against the docs, storing credentials in env vars, running a test authorization once a human has approved). It is NOT a description of the OAuth protocol. human_must_do = each action only the account owner can do (sign in, create the app in the console, accept terms, copy the secret, submit for review). Each item should name the concrete action. These two lists are your inference unless a quote documents them.
 Rules: use ONLY facts present in the evidence. If the evidence does not say how long approval takes, say "not stated in fetched sources" instead of guessing. Every step needs a source url copied from the evidence. Mark anything uncertain in nuances. Output raw JSON only, no markdown fences.`;
+
+// Deterministic numbered passage list shared by the prompt and the
+// coverage gate: the model cites [Pn] and the server substitutes the exact
+// fetched text, so a published quote is always literal evidence.
+function passageIndex(evidence) {
+  const out = [];
+  let n = 0;
+  for (const page of evidence.pages) {
+    for (const sentence of (page.sentences || []).slice(0, 30)) {
+      n += 1;
+      out.push({ id: `P${n}`, url: page.url, sentence });
+    }
+  }
+  return out;
+}
 
 function buildUserPrompt(evidence) {
   const parts = [`App query: ${evidence.query.input}`, ''];
   // Coverage-gate feedback from a rejected previous draft (verbatim quotes).
   if (evidence.feedback) parts.push(`FEEDBACK ON YOUR PREVIOUS DRAFT: ${evidence.feedback}`, '');
+  const byUrl = new Map();
+  for (const ref of passageIndex(evidence)) {
+    if (!byUrl.has(ref.url)) byUrl.set(ref.url, []);
+    byUrl.get(ref.url).push(ref);
+  }
   for (const page of evidence.pages) {
     parts.push(`PAGE: ${page.url}`);
     if (page.title) parts.push(`Title: ${page.title}`);
     if (page.headings.length) parts.push(`Headings: ${page.headings.join(' | ')}`);
-    if (page.sentences.length) parts.push('Passages:');
-    for (const s of page.sentences.slice(0, 30)) parts.push(`- ${s}`);
+    const refs = byUrl.get(page.url) || [];
+    if (refs.length) parts.push('Passages (cite as [Pn]):');
+    for (const ref of refs) parts.push(`- [${ref.id}] ${ref.sentence}`);
     parts.push('');
   }
   if (!evidence.pages.length) parts.push('(No pages could be fetched; search result titles/URLs follow.)');
@@ -162,4 +183,4 @@ async function synthesize(evidence, env = process.env) {
   return { backend, guide };
 }
 
-module.exports = { detectBackend, synthesize, buildUserPrompt, SYSTEM_PROMPT };
+module.exports = { detectBackend, synthesize, buildUserPrompt, passageIndex, SYSTEM_PROMPT };
