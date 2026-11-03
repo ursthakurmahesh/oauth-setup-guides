@@ -16,9 +16,9 @@ What the docs get right:
 What the docs omit or understate:
 - The client secret is a SECOND explicit step ("Generate a new client
   secret") and GitHub forces a sudo-mode password re-confirmation before
-  issuing it. An agent without the account password (or a user with 2FA)
-  stops here - this is a hard human-handoff point the quickstart never
-  mentions.
+  issuing it. An agent needs the account password (or the user, with 2FA) to
+  pass this step - a credential-dependent gate the quickstart never mentions.
+  The walkthrough held the account password and completed it.
 - Scopes are not configured in the console at all; they are requested at
   authorize-time. First-time console users look for a scopes section that
   does not exist.

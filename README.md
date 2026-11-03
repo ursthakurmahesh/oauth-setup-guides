@@ -234,7 +234,8 @@ design.
 - Review timelines quoted for library guides come from provider-published
   estimates; actual review times vary.
 - Library guides are verified against provider documentation fetched on
-  2026-11-03; consoles were driven end-to-end only for the walkthrough
+  2026-11-03; consoles were driven through app registration and credential
+  issuance (not the authorization/token exchange) only for the walkthrough
   providers in the ground-truth audit (each guide carries a "How this was
   checked" note saying exactly what was and was not exercised).
 - Generated guides' scopes sections can be thin when no official scope
