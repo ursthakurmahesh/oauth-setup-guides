@@ -43,6 +43,37 @@ async function ensureDataBranch(c) {
   await gh('POST', `https://api.github.com/repos/${c.repo}/git/refs`, c.token, { ref: `refs/heads/${DATA_BRANCH}`, sha: main.object.sha });
 }
 
+// Read one JSON file from the generated-data branch (null when absent).
+async function readGeneratedFile(file, env = process.env) {
+  const c = cfg(env);
+  if (!c) return null;
+  try {
+    const url = `https://api.github.com/repos/${c.repo}/contents/${file}?ref=${DATA_BRANCH}`;
+    const res = await gh('GET', url, c.token);
+    return JSON.parse(Buffer.from(res.content, 'base64').toString('utf8'));
+  } catch { return null; }
+}
+
+// Write one JSON file to the generated-data branch. Best-effort: failures
+// are logged, never thrown (persistence must not break runtime work).
+async function pushGeneratedFile(file, obj, message, log = console.error, env = process.env) {
+  const c = cfg(env);
+  if (!c) return false;
+  try {
+    await ensureDataBranch(c);
+    const url = `https://api.github.com/repos/${c.repo}/contents/${file}`;
+    let sha;
+    try { sha = (await gh('GET', `${url}?ref=${DATA_BRANCH}`, c.token)).sha; } catch { /* new file */ }
+    await gh('PUT', url, c.token, {
+      message,
+      branch: DATA_BRANCH,
+      content: Buffer.from(JSON.stringify(obj, null, 2)).toString('base64'),
+      ...(sha ? { sha } : {}),
+    });
+    return true;
+  } catch (err) { log(`persist: ${file} write failed: ${err.message}`); return false; }
+}
+
 async function pushGenerated(guide, log = console.error, env = process.env) {
   const c = cfg(env);
   if (!c) { log('persist: GITHUB_TOKEN/GITHUB_REPO not set; generated guide lives only until the next restart'); return false; }
@@ -102,4 +133,4 @@ async function pullGenerated(log = console.error, env = process.env) {
   }
 }
 
-module.exports = { pushGenerated, pullGenerated };
+module.exports = { pushGenerated, pullGenerated, readGeneratedFile, pushGeneratedFile };

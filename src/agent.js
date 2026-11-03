@@ -12,6 +12,50 @@ const { saveGenerated, getGuide } = require('./store');
 const { pushGenerated } = require('./persist');
 
 const jobs = new Map();
+const { readGeneratedFile, pushGeneratedFile } = require('./persist');
+const JOBS_REGISTRY_FILE = 'data/generated/jobs.json';
+
+// Jobs are in-memory, so a host restart (e.g. a redeploy) used to answer
+// polling clients with a bare 404 "job not found" (observed live 2026-11-03).
+// A lightweight registry on the generated-data branch survives restarts:
+// completed jobs stay queryable and in-flight jobs come back as an honest
+// 'interrupted' state instead of vanishing.
+function registrySnapshot() {
+  const out = {};
+  for (const [id, j] of jobs) {
+    out[id] = { id, query: j.query, status: j.status, slug: j.slug || null, error: j.error || null, created_at: j.created_at, finished_at: j.finished_at || null };
+  }
+  return out;
+}
+
+let registryTimer = null;
+function syncJobRegistry({ immediate = false } = {}) {
+  if (registryTimer) return;
+  const write = () => { registryTimer = null; pushGeneratedFile(JOBS_REGISTRY_FILE, registrySnapshot(), 'Update job registry'); };
+  if (immediate) write(); else registryTimer = setTimeout(write, 15000);
+}
+
+// Pure mapping for boot restore (unit-tested): in-flight jobs did not finish;
+// they were interrupted by the restart and must say so.
+function restoreJobEntry(entry) {
+  if (!entry || !entry.id) return null;
+  const j = { ...entry, log: entry.log || [] };
+  if (j.status === 'running' || j.status === 'queued') {
+    j.status = 'interrupted';
+    j.error = 'The service restarted while this job was running; its result was lost. Please start a new generation.';
+    j.log = [...j.log, { at: new Date().toISOString(), line: 'Job interrupted by a service restart before it finished.' }];
+  }
+  return j;
+}
+
+async function loadJobRegistry() {
+  const data = await readGeneratedFile(JOBS_REGISTRY_FILE);
+  if (!data || typeof data !== 'object') return;
+  for (const entry of Object.values(data)) {
+    const j = restoreJobEntry(entry);
+    if (j) jobs.set(j.id, j);
+  }
+}
 
 // Free-tier model capacity spikes (HTTP 503) can last minutes. A live demo
 // must not die to them: after the model's own fast retry chain exhausts, the
@@ -56,6 +100,7 @@ async function runJob(job) {
       // No model backend configured: return the real investigation, honestly
       // labeled. This is not presented as a finished guide.
       job.status = 'research_only';
+      job.finished_at = new Date().toISOString(); syncJobRegistry({ immediate: true });
       job.research = {
         note: 'Investigation completed, but no model backend is configured, so synthesis did not run. Set GEMINI_API_KEY (free AI Studio tier), run local Ollama, or set OPENAI_API_KEY to enable full guide generation.',
         search_results: evidence.search_results,
@@ -69,6 +114,7 @@ async function runJob(job) {
       // Never synthesize from thin air: with no fetched provider pages the
       // model would write from training memory and still get last_checked.
       job.status = 'research_only';
+      job.finished_at = new Date().toISOString(); syncJobRegistry({ immediate: true });
       job.research = {
         note: 'No provider documentation could be fetched, so no guide was synthesized. Search result candidates are below; try the app\'s exact developer site URL.',
         search_results: evidence.search_results,
@@ -89,6 +135,7 @@ async function runJob(job) {
     if (strong < MIN_STRONG_PASSAGES) {
       // Evidence gate: general product pages are not OAuth documentation.
       job.status = 'research_only';
+      job.finished_at = new Date().toISOString(); syncJobRegistry({ immediate: true });
       job.research = {
         note: `Not enough OAuth documentation was found for "${job.query}" (${strong} relevant passages across ${evidence.pages.length} first-party pages; at least ${MIN_STRONG_PASSAGES} are required), so no guide was generated. This is an incomplete investigation, not a finished guide. Try the provider's developer-docs URL directly.`,
         search_results: evidence.search_results,
@@ -101,10 +148,12 @@ async function runJob(job) {
   } catch (err) {
     if (job.evidence_pages && job.evidence_pages.length) {
       job.status = 'research_only';
+      job.finished_at = new Date().toISOString(); syncJobRegistry({ immediate: true });
       job.research = { note: `Generation failed (${err.message.slice(0, 200)}); the investigation results are preserved below.`, search_results: [], pages: [] };
       say(`Failed, evidence preserved: ${err.message}`);
     } else {
       job.status = 'error';
+      job.finished_at = new Date().toISOString(); syncJobRegistry({ immediate: true });
       job.error = err.message;
       say(`Failed: ${err.message}`);
     }
@@ -227,6 +276,7 @@ async function synthesizeAndPublish(job, evidence, say) {
         continue;
       }
       job.status = 'research_only';
+      job.finished_at = new Date().toISOString(); syncJobRegistry({ immediate: true });
       job.research = {
         note: `Synthesis failed ${job.synth_failures > 1 ? `${job.synth_failures} times over several minutes` : ''} (${err.message.slice(0, 200)}); the investigation results are preserved below.`,
         search_results: [],
@@ -245,6 +295,7 @@ async function synthesizeAndPublish(job, evidence, say) {
       built = buildCandidate(job, evidence, guide);
     } catch (err) {
       job.status = 'research_only';
+      job.finished_at = new Date().toISOString(); syncJobRegistry({ immediate: true });
       job.research = {
         note: `Publishing failed (${err.message.slice(0, 200)}); the investigation results are preserved below.`,
         search_results: [],
@@ -266,6 +317,7 @@ async function synthesizeAndPublish(job, evidence, say) {
         guide = r.guide;
       } catch (err) {
         job.status = 'research_only';
+      job.finished_at = new Date().toISOString(); syncJobRegistry({ immediate: true });
         job.research = {
           note: `Synthesis failed on the coverage feedback pass (${err.message.slice(0, 200)}); the investigation results are preserved below.`,
           search_results: [],
@@ -277,6 +329,7 @@ async function synthesizeAndPublish(job, evidence, say) {
       continue;
     }
     job.status = 'research_only';
+      job.finished_at = new Date().toISOString(); syncJobRegistry({ immediate: true });
     job.research = {
       note: `The fetched documentation did not verifiably cover: ${missingSlots.join(', ').replace(/_/g, ' ')}. A setup guide without those would mislead, so none was published. This is an incomplete investigation; the pages reviewed are listed below.`,
       search_results: [],
@@ -289,6 +342,7 @@ async function synthesizeAndPublish(job, evidence, say) {
     const errors = validateGuide(candidate);
     if (errors.length) {
       job.status = 'error';
+      job.finished_at = new Date().toISOString(); syncJobRegistry({ immediate: true });
       job.error = `Model output failed guide validation: ${errors.join('; ')}`;
       say(job.error);
       return;
@@ -298,6 +352,7 @@ async function synthesizeAndPublish(job, evidence, say) {
     const verifiedSteps = candidate.steps.filter((st) => st.verified).length;
     if (candidate.steps.length < 3 || verifiedSteps < 2 || !candidate.agent_can_do.length || !candidate.human_must_do.length) {
       job.status = 'research_only';
+      job.finished_at = new Date().toISOString(); syncJobRegistry({ immediate: true });
       job.research = {
         note: `The generated draft was too thin to publish (${candidate.steps.length} steps, ${verifiedSteps} docs-backed, ${candidate.agent_can_do.length} agent actions, ${candidate.human_must_do.length} human actions). No guide was saved. This is an incomplete investigation; the sources reviewed are listed below.`,
         search_results: [],
@@ -308,6 +363,7 @@ async function synthesizeAndPublish(job, evidence, say) {
     }
     saveGenerated(candidate);
     job.status = 'done';
+      job.finished_at = new Date().toISOString(); syncJobRegistry({ immediate: true });
     job.slug = candidate.slug;
     job.backend = backend.label;
     say(`Guide ready: /guide/${candidate.slug}`);
@@ -316,6 +372,7 @@ async function synthesizeAndPublish(job, evidence, say) {
     // Publishing/validation failed after a successful synthesis: preserve the
     // investigation rather than dropping to a bare error.
     job.status = 'research_only';
+      job.finished_at = new Date().toISOString(); syncJobRegistry({ immediate: true });
     job.research = {
       note: `Publishing failed (${err.message.slice(0, 200)}); the investigation results are preserved below.`,
       search_results: [],
@@ -335,9 +392,14 @@ function startGeneration(query) {
   const job = { id, query: trimmed, status: 'running', log: [], created_at: new Date().toISOString() };
   jobs.set(id, job);
   pushLog(job, 'Job accepted');
+  // Immediate (not debounced) so a restart seconds later still knows this
+  // job existed: no loss window between creation and the first sync.
+  syncJobRegistry({ immediate: true });
   runJob(job);
   return job;
 }
+
+loadJobRegistry().catch((err) => console.error(`job registry restore failed: ${err.message}`));
 
 function getJob(id) {
   const job = jobs.get(id);
@@ -359,4 +421,4 @@ function agentStatus() {
   };
 }
 
-module.exports = { startGeneration, getJob, agentStatus };
+module.exports = { startGeneration, getJob, agentStatus, restoreJobEntry };
