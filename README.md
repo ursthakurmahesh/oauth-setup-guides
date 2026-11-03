@@ -25,6 +25,19 @@ Built as a take-home for the Composio APM (Integrations) role.
   uncertain. If no model backend is configured, the app returns the raw
   sourced investigation labeled as research, never a fake "guide".
 
+## Live demo
+
+https://oauth-setup-guides.onrender.com
+
+Hosted on Render's free tier (no card). Caveats of the free tier: the service
+sleeps after 15 idle minutes and takes about a minute to wake (Render shows a
+loading page), and generated guides live on an ephemeral filesystem, so they
+can disappear when the service restarts; the 8-guide library ships with the
+code and is always present. The deployment stores the model key as a secret
+environment variable, rate-limits requests (240 req/min per IP, 5 live
+generations per 10 min per IP), caps query and page sizes, and blocks
+internal-network fetch targets (SSRF guard).
+
 ## Running it
 
 Requires Node 18+ (developed against Node 22 LTS). No dependencies to install.
@@ -69,7 +82,8 @@ labeled as research-only, with instructions to configure a backend.
 - **No paid APIs anywhere.** Model backends are free-tier or local; the
   investigation layer uses public search and the providers' own pages.
 - **Generated guides persist** under `data/generated/` so a live demo
-  produces a durable, shareable artifact.
+  produces a durable, shareable artifact (on the free host this storage is
+  ephemeral - see Live demo caveats).
 
 ## How agents were used
 
@@ -78,9 +92,20 @@ each provider's current official documentation on 2026-11-03, extracting the
 setup, approval and timeline facts, and cross-checking claims (e.g. Google's
 published verification timelines, Salesforce's Spring '26 connected-app
 restriction, Spotify's May 2025 org-only quota policy). What was verified
-against a fetched source is labeled `verified: true` in each guide; items we
-could not verify in this pass (e.g. some marketplace review timelines) say so
-explicitly instead of guessing.
+against a fetched source is labeled with "source page fetched by server";
+items the sources do not settle (e.g. an approval requirement the docs never
+mention) are marked "unknown", not guessed.
+
+Agents also attempted setup directly where that was possible without creating
+real third-party apps: the GitHub OAuth app registration form was opened live
+in the provider console on 2026-11-03 and its fields match the GitHub guide
+(recorded in that guide's "How this was checked" note; no app was created).
+
+A second agent pass reviewed the codebase itself: an independent frontier
+model (Claude Sonnet, consulted through a public model arena) did a full
+review of the investigation/synthesis code; its findings led to the SSRF
+hardening, server-computed verified flags, evidence allow-listing, failure
+degradation to preserved research, and the rate limits above.
 
 ## Limitations
 
@@ -99,9 +124,9 @@ explicitly instead of guessing.
 - Tests pass in CI on both ubuntu-latest and windows-latest with Node 22
   (GitHub Actions matrix, see .github/workflows/test.yml). stdlib only, no
   native modules, no platform-specific APIs. Developed on Linux Node 22.23.
-- The SSRF guard blocks loopback/private/link-local fetch targets; public
-  deployment additionally needs secret storage for keys, rate limiting and
-  request bounds, which are out of scope for local review runs.
+- The SSRF guard blocks loopback/private/link-local fetch targets across
+  redirect hops; the public deployment additionally uses secret env storage,
+  per-IP rate limits and request bounds (see Live demo).
 - Gemini's free tier rate-limits under demand; the client retries with
   backoff across fallback models, but a saturated API still fails visibly
   (job status error) instead of silently degrading.
