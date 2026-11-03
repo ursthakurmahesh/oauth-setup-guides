@@ -2,4 +2,4 @@ node_modules/
 .env
 *.log
 data/generated/*
-!data/generated/gen-linear-fb715f.json
+!data/generated/gen-linear-fe1882.json

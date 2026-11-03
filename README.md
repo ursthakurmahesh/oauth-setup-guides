@@ -47,6 +47,13 @@ node server.js
 # open http://localhost:3000
 ```
 
+Windows (PowerShell, Node 22) - set the model key and run:
+
+```powershell
+$env:GEMINI_API_KEY = "..."
+node server.js
+```
+
 Tests:
 
 ```bash
@@ -60,10 +67,15 @@ synthesis needs one of these no-card model backends:
 
 1. **Google AI Studio free tier** - create a free API key at
    https://aistudio.google.com/apikey (no card required), then:
-   `GEMINI_API_KEY=... node server.js`
+   `GEMINI_API_KEY=... node server.js` (POSIX; PowerShell syntax below)
 2. **Local Ollama** - install Ollama, `ollama pull llama3.1:8b`, then:
-   `USE_OLLAMA=1 node server.js` (fully offline)
-3. **OpenAI-compatible** - `OPENAI_API_KEY=... [OPENAI_BASE_URL=...] node server.js`
+   `USE_OLLAMA=1 node server.js`. The model runs on your machine; the
+   investigation stage (search and documentation fetch) still uses the
+   network, because live provider pages are the evidence.
+3. **Bring your own OpenAI-compatible endpoint** - `OPENAI_API_KEY=...
+   [OPENAI_BASE_URL=...] node server.js`. Whether this costs anything depends
+   on the endpoint you point it at; the demo itself runs entirely on the
+   free Gemini tier above, and no paid API is required for any part of it.
 
 With none of these set, generation returns the sourced investigation clearly
 labeled as research-only, with instructions to configure a backend.
