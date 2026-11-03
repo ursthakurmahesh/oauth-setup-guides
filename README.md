@@ -206,8 +206,12 @@ deployment; results below are actual job outcomes, not unit tests.
 | B: homepage URL | `calendly.com` | Guide generated (job 20c0ac46e3ec); 5/6 slots verified incl. scopes and Calendly's mandatory-PKCE requirement |
 | B: homepage URL | `pinterest.com` | First run found 0 passages (~770KB of inline CSS/JS pushed content past the page read cap); after the non-content-stripping fix, evidence was found but the gate rejected an entity-mangled quote (Pinterest emits `&#x27;`). After hex/numeric entity decoding: guide generated live (job fbe5f8158601, gen-pinterest-fbe5f8), create_app + credentials slots verified against fetched pages |
 | A: app name | `Airtable` | No guide - research-only: the fetched evidence covered the OAuth flow but no verbatim app-creation passage, so the coverage gate correctly refused to publish (create_app not_found). Same honest-refusal class as TickTick |
+| A: app name, retry after adding same-apex support./help. help-center probes | `Airtable` | No guide - research-only again (job 1c20dd7aa170): the probe found no additional public app-creation passage; gate refused. Airtable's app-creation flow appears to be documented only behind sign-in |
 | C: docs link | `https://developers.notion.com/docs/authorization` | Guide generated (job b6c95124dab5); 4/6 slots verified |
+| B: homepage URL | `figma.com` | No guide - research-only (job 09d4b28558a7): docs found and investigated, but no verbatim app-creation passage survived the coverage gate's feedback retry; refused rather than fabricating |
+| B: homepage URL | `x.com` | No guide - research-only in two independent runs (jobs dfa50771529b, a59f9f7f066f), one of them started by an external tester on the live site: create_app and redirect_uri quotes not found verbatim; correct refusal |
 | Persistence | redeploy with wiped filesystem | Guide generated before the redeploy (gen-linear-ea1159) was served after it, restored from the `generated-data` branch |
+| Job continuity across restarts | deploy wiping the in-memory job map (previously: polling clients got 404 'job not found' mid-job) | Job registry now syncs to the `generated-data` branch on creation and terminal states; on boot, completed jobs stay queryable and in-flight jobs restore as `interrupted` with a truthful retry message instead of vanishing into a 404 |
 
 There is no universal any-app guarantee: providers whose documentation needs
 a headless browser, or is otherwise unreadable, end as research-only by
