@@ -5,7 +5,8 @@
 function approvalLabel(a) {
   if (a.required === true) return 'Approval / review required';
   if (a.required === 'conditional') return 'Approval required only in some cases';
-  return 'No approval required to start';
+  if (a.required === 'unknown') return 'Approval requirements unknown - not stated in the fetched sources';
+  return 'No approval required to start (per the fetched sources)';
 }
 
 function guideToMarkdown(g) {

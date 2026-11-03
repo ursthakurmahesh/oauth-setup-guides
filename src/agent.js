@@ -71,11 +71,17 @@ async function runJob(job) {
       console_url: onEvidence(guide.console_url) ? guide.console_url : null,
       difficulty: guide.difficulty,
       summary: String(guide.summary || '').slice(0, 600),
-      approval: guide.approval && typeof guide.approval === 'object' ? {
-        required: guide.approval.required,
-        typical_timeline: String(guide.approval.typical_timeline || 'not stated in fetched sources').slice(0, 300),
-        notes: String(guide.approval.notes || '').slice(0, 400),
-      } : undefined,
+      approval: guide.approval && typeof guide.approval === 'object' ? (() => {
+        const timeline = String(guide.approval.typical_timeline || 'not stated in fetched sources').slice(0, 300);
+        const notes = String(guide.approval.notes || '').slice(0, 400);
+        let required = guide.approval.required;
+        // Source-support semantics: if the model's own text says the sources
+        // do not state approval requirements, it may not claim "not required".
+        const admitsUnknown = /not stated|does not (state|mention)|no mention|not specified/i.test(`${timeline} ${notes}`);
+        if ((required === false || required === 'conditional') && admitsUnknown) required = 'unknown';
+        if (required == null) required = 'unknown';
+        return { required, typical_timeline: timeline, notes };
+      })() : undefined,
       steps: (Array.isArray(guide.steps) ? guide.steps : []).slice(0, 12).map((s) => ({
         title: String((s || {}).title || '').slice(0, 140),
         detail: String((s || {}).detail || '').slice(0, 600),

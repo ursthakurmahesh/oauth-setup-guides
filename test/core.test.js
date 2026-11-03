@@ -78,3 +78,23 @@ test('guideToMarkdown includes verification badges and sources', () => {
   assert.match(md, /source page fetched by server/);
   assert.match(md, /docs\.github\.com/);
 });
+
+test('approval.required "unknown" is valid and renders honestly', () => {
+  const { validateGuide } = require('../src/guideSchema');
+  const { guideToMarkdown } = require('../src/markdown');
+  const base = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'generated', 'gen-linear-fb715f.json'), 'utf8'));
+  assert.equal(base.approval.required, 'unknown');
+  assert.deepEqual(validateGuide(base), []);
+  const md = guideToMarkdown(base);
+  assert.match(md, /unknown - not stated in the fetched sources/);
+  assert.doesNotMatch(md, /No approval required to start/);
+});
+
+test('generated approval badge never claims "no approval" without source support', () => {
+  const { renderGuidePage } = require('../server');
+  const { getGuide } = require('../src/store');
+  const g = getGuide('gen-linear-fb715f');
+  const html = renderGuidePage(g);
+  assert.match(html, /unknown - not stated in the fetched sources/);
+  assert.doesNotMatch(html, /not required to start[^<]*unknown/);
+});

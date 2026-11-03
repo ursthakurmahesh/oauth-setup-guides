@@ -27,8 +27,8 @@ function validateGuide(guide) {
   if (!guide.approval || typeof guide.approval !== 'object') {
     errors.push('missing approval object {required, typical_timeline, notes}');
   } else {
-    if (typeof guide.approval.required !== 'boolean' && guide.approval.required !== 'conditional') {
-      errors.push('approval.required must be true, false or "conditional"');
+    if (typeof guide.approval.required !== 'boolean' && !['conditional', 'unknown'].includes(guide.approval.required)) {
+      errors.push('approval.required must be true, false, "conditional" or "unknown" (unknown = the fetched sources do not say)');
     }
     if (typeof guide.approval.typical_timeline !== 'string') {
       errors.push('approval.typical_timeline must be a string');

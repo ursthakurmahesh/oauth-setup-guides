@@ -16,7 +16,8 @@ function esc(s) {
 function approvalShort(a) {
   if (a.required === true) return 'approval required';
   if (a.required === 'conditional') return 'approval in some cases';
-  return 'no approval needed';
+  if (a.required === 'unknown') return 'approval unknown - not in sources';
+  return 'no approval needed (per sources)';
 }
 
 function renderCards(guides) {

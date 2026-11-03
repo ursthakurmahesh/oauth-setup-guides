@@ -66,7 +66,7 @@ function renderGuidePage(g) {
 <dl class="facts">
 <dt>Difficulty</dt><dd>${escapeHtml(g.difficulty)}</dd>
 <dt>Expected time / effort</dt><dd>${escapeHtml(g.approval.typical_timeline)}</dd>
-<dt>Approval</dt><dd>${g.approval.required === true ? 'required' : g.approval.required === 'conditional' ? 'required only in some cases' : 'not required to start'}${g.approval.notes ? ` - ${escapeHtml(g.approval.notes)}` : ''}</dd>
+<dt>Approval</dt><dd>${g.approval.required === true ? 'required' : g.approval.required === 'conditional' ? 'required only in some cases' : g.approval.required === 'unknown' ? 'unknown - not stated in the fetched sources' : 'not required to start (per the fetched sources)'}${g.approval.notes ? ` - ${escapeHtml(g.approval.notes)}` : ''}</dd>
 ${g.console_url ? `<dt>Developer console</dt><dd><a href="${escapeHtml(g.console_url)}">${escapeHtml(g.console_url)}</a></dd>` : ''}
 ${g.testing ? `<dt>How this was checked</dt><dd>${escapeHtml(g.testing.note)}</dd>` : ''}
 </dl>

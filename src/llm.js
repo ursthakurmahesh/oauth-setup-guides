@@ -28,7 +28,7 @@ Given evidence extracted from a provider's official pages, produce ONE JSON obje
  "app": string, "website": string, "console_url": string|null,
  "difficulty": "easy"|"moderate"|"hard",
  "summary": string (2-3 sentences: how hard, how long, the main catch),
- "approval": {"required": true|false|"conditional", "typical_timeline": string, "notes": string},
+ "approval": {"required": true|false|"conditional"|"unknown" (use "unknown" when the fetched pages do not state approval requirements - never guess false), "typical_timeline": string, "notes": string},
  "steps": [{"title": string, "detail": string, "source": string (url), "verified": true}],
  "nuances": [string],
  "agent_can_do": [string],
