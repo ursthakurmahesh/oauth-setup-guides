@@ -273,6 +273,40 @@ function candidateUrls(query) {
   return urls;
 }
 
+// Rank and bound evidence candidates. For a domain query, only that domain
+// (and its subdomains) counts as first-party evidence - search junk from
+// unrelated domains must not be fetched or cited.
+function apexOf(hostname) {
+  const parts = String(hostname || '').toLowerCase().replace(/^www\./, '').split('.');
+  const twoLevel = new Set(['co.uk', 'org.uk', 'com.au', 'co.in', 'co.jp', 'com.br', 'co.nz', 'com.sg']);
+  const last2 = parts.slice(-2).join('.');
+  return twoLevel.has(last2) && parts.length >= 3 ? parts.slice(-3).join('.') : last2;
+}
+
+function hostOf(url) {
+  try { return new URL(url).hostname.toLowerCase(); } catch { return ''; }
+}
+
+function onApex(url, apex) {
+  const h = hostOf(url).replace(/^www\./, '');
+  return h === apex || h.endsWith(`.${apex}`);
+}
+
+function docScore(url, query) {
+  const h = hostOf(url);
+  const p = (() => { try { return new URL(url).pathname.toLowerCase(); } catch { return ''; } })();
+  let score = 0;
+  const apex = query.domain ? apexOf(query.domain) : null;
+  if (apex && onApex(url, apex)) score += 4;
+  const name = String(query.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (name && h.replace(/[^a-z0-9]/g, '').includes(name)) score += 3;
+  if (/oauth|auth|api|develop|docs?|app/.test(p)) score += 2;
+  if (/^(developer|developers|docs|api)\./.test(h.replace(/^www\./, ''))) score += 1;
+  if (/blog|careers|pricing|about|press|news/.test(p)) score -= 2;
+  if (p === '/' || /^\/[a-z]{2}(-[a-z]+)?\/?$/.test(p)) score -= 1; // bare locale roots
+  return score;
+}
+
 async function investigate(rawQuery, log) {
   const say = log || (() => {});
   const query = normalizeQuery(rawQuery);
@@ -286,8 +320,19 @@ async function investigate(rawQuery, log) {
     say(`Search failed (${err.message}); falling back to direct URLs`);
   }
 
+  // Rank search candidates; for a domain query keep only first-party hosts.
+  const apex = query.domain ? apexOf(query.domain) : null;
+  let ranked = evidence.search_results
+    .map((r) => ({ url: r.url, score: docScore(r.url, query) }))
+    .sort((a, b) => b.score - a.score);
+  if (apex) {
+    const firstParty = ranked.filter((r) => onApex(r.url, apex));
+    const dropped = ranked.length - firstParty.length;
+    if (dropped) say(`Dropped ${dropped} off-domain search result(s); only ${apex} counts as evidence for a domain query`);
+    ranked = firstParty;
+  }
   const targets = [];
-  for (const r of evidence.search_results.slice(0, 4)) targets.push(r.url);
+  for (const r of ranked.slice(0, 4)) targets.push(r.url);
   for (const u of candidateUrls(query)) if (!targets.includes(u)) targets.push(u);
   const extraTargets = [];
   const finalTargets = targets.slice(0, 6);
@@ -300,6 +345,8 @@ async function investigate(rawQuery, log) {
       evidence.pages.push({ url: finalUrl, requestedUrl: url, ...facts });
       say(`Extracted ${facts.sentences.length} OAuth-related passages from ${url}`);
       for (const link of extractDeveloperLinks(html, url).slice(0, 3)) {
+        if (apex && !onApex(link.url, apex)) continue;
+        if (!/oauth|auth|api|app|develop|doc/i.test(link.url)) continue;
         if (!targets.includes(link.url) && !extraTargets.includes(link.url)) {
           extraTargets.push(link.url);
         }
@@ -322,4 +369,4 @@ async function investigate(rawQuery, log) {
   return evidence;
 }
 
-module.exports = { investigate, normalizeQuery, extractEvidence, stripHtml, extractDeveloperLinks, searchDeveloperDocs, isBlockedUrl, isBlockedIp };
+module.exports = { investigate, normalizeQuery, extractEvidence, stripHtml, extractDeveloperLinks, searchDeveloperDocs, isBlockedUrl, isBlockedIp, apexOf, onApex, docScore };

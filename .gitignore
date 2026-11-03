@@ -1,4 +1,5 @@
 node_modules/
 .env
 *.log
-data/generated/
+data/generated/*
+!data/generated/gen-linear-fb715f.json

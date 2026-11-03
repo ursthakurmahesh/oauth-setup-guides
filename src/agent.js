@@ -60,6 +60,22 @@ async function runJob(job) {
     say(`Synthesizing guide with ${backend.label}`);
     const fetchedHosts = new Set(evidence.pages.map((p) => { try { return new URL(p.url).hostname.replace(/^www\./, ''); } catch { return ''; } }));
     const fetchedUrls = new Set(evidence.pages.map((p) => p.url));
+    // verified requires more than a host match: the step's own words must
+    // overlap the passages actually extracted from its cited page.
+    const passageTextByUrl = new Map(evidence.pages.map((p) => [
+      p.url,
+      `${p.title || ''} ${(p.headings || []).join(' ')} ${(p.sentences || []).join(' ')}`.toLowerCase(),
+    ]));
+    const contentWords = (text) => String(text).toLowerCase().match(/[a-z][a-z0-9-]{3,}/g) || [];
+    const stepSupported = (step) => {
+      const pageText = passageTextByUrl.get(step.source);
+      if (!pageText) return false;
+      const words = contentWords(`${step.title} ${step.detail || ''}`)
+        .filter((w) => !['oauth', 'http', 'https', 'com', 'www', 'your', 'with', 'from', 'that', 'this'].includes(w));
+      if (!words.length) return true;
+      const hits = new Set(words.filter((w) => pageText.includes(w)));
+      return hits.size >= Math.min(2, new Set(words).size);
+    };
     const onEvidence = (u) => {
       try { return fetchedHosts.has(new URL(u).hostname.replace(/^www\./, '')); } catch { return false; }
     };
@@ -86,9 +102,10 @@ async function runJob(job) {
         title: String((s || {}).title || '').slice(0, 140),
         detail: String((s || {}).detail || '').slice(0, 600),
         source: (s || {}).source,
-        // verified is computed server-side: only a step whose source URL we
-        // actually fetched may claim it.
-        verified: fetchedUrls.has((s || {}).source),
+        // verified is computed server-side: the cited page must actually
+        // have been fetched AND its extracted passages must share content
+        // words with the step, so a citation cannot lean on a bare host match.
+        verified: (() => { const st = { source: (s || {}).source, title: String((s || {}).title || ''), detail: String((s || {}).detail || '') }; return fetchedUrls.has(st.source) && stepSupported(st); })(),
       })),
       nuances: (Array.isArray(guide.nuances) ? guide.nuances : []).slice(0, 12).map((n) => String(n).slice(0, 300)),
       agent_can_do: (Array.isArray(guide.agent_can_do) ? guide.agent_can_do : []).slice(0, 8).map((n) => String(n).slice(0, 200)),
