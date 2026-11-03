@@ -1,0 +1,11 @@
+{
+  "dfa50771529b": {
+    "id": "dfa50771529b",
+    "query": "x.com",
+    "status": "running",
+    "slug": null,
+    "error": null,
+    "created_at": "2026-11-03T17:45:09.729Z",
+    "finished_at": null
+  }
+}
