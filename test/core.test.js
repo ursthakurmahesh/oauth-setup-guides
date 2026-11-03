@@ -178,3 +178,15 @@ test('inferApexFromResults resolves a brand to its provider apex, conservatively
   assert.equal(inferApexFromResults([{ url: 'https://unrelated-blog.com/post' }], 'HubSpot'), null);
   assert.equal(inferApexFromResults([], 'HubSpot'), null);
 });
+
+test('homepage-looking URLs (/index.html, /home, locale roots) are domain queries, not docs links', () => {
+  for (const raw of ['https://www.figma.com/index.html', 'https://figma.com/home', 'https://figma.com/en/', 'linear.app']) {
+    assert.equal(normalizeQuery(raw).kind, 'domain', raw);
+  }
+  assert.equal(normalizeQuery('https://figma.com/en/?ref=x').kind, 'docs_url');
+});
+
+test('inferApexFromResults ignores third-party publishers even when the brand is in the path', () => {
+  assert.equal(inferApexFromResults([{ url: 'https://medium.com/hubspot-guide' }], 'HubSpot'), null);
+  assert.equal(inferApexFromResults([{ url: 'https://medium.com/hubspot-guide' }, { url: 'https://developers.hubspot.com/docs/api/oauth' }], 'HubSpot'), 'hubspot.com');
+});

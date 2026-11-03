@@ -31,8 +31,10 @@ function normalizeQuery(raw) {
     // Brand comes from the apex, not the host: "developers.notion.com" is Notion.
     const name = apex.split('.')[0];
     // A bare homepage is a domain query; a deeper path is a specific docs
-    // link the user wants used as the primary source.
-    const bare = u.pathname === '/' || u.pathname === '';
+    // link the user wants used as the primary source. /index.html, /home and
+    // bare locale roots (/en, /en-us) are still homepages, not docs links.
+    const p = u.pathname.toLowerCase();
+    const bare = !u.search && (p === '/' || p === '' || p === '/index.html' || p === '/index.htm' || p === '/home' || /^\/[a-z]{2}(-[a-z]{2,})?\/?$/.test(p));
     return { kind: bare ? 'domain' : 'docs_url', url: u.toString(), domain: host, apex, name, input };
   }
   return { kind: 'name', domain: null, apex: null, name: input, input };
@@ -47,18 +49,28 @@ function mergeResults(lists) {
   return out;
 }
 
-// Infer the provider apex for a bare brand-name query from the search hits:
-// the best hit whose host contains the brand token. Conservative - no hit
-// means no inference and the caller keeps its honest fallback behaviour.
+// Hosts that publish content ABOUT many brands: a hit there never identifies
+// the provider's own apex (medium.com/hubspot-guide is not HubSpot).
+const THIRD_PARTY_HOSTS = new Set(['medium.com', 'github.com', 'stackoverflow.com', 'dev.to', 'youtube.com', 'reddit.com', 'quora.com', 'wikipedia.org']);
+
+// Infer the provider apex for a bare brand-name query from the search hits.
+// The brand token must appear as a discrete host label (developer.hubspot.com)
+// or, as a weaker fallback, inside the host string - never on a third-party
+// publisher host. No confident hit means no inference and the caller keeps
+// its honest fallback behaviour.
 function inferApexFromResults(results, name) {
   const token = String(name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
   if (!token) return null;
+  let substringHit = null;
   for (const r of results || []) {
     const h = hostOf(r.url).replace(/^www\./, '');
     if (!h) continue;
-    if (h.replace(/[^a-z0-9]/g, '').includes(token)) return apexOf(h);
+    const apex = apexOf(h);
+    if (THIRD_PARTY_HOSTS.has(apex)) continue;
+    if (h.split('.').includes(token)) return apex;
+    if (!substringHit && h.replace(/[^a-z0-9]/g, '').includes(token)) substringHit = apex;
   }
-  return null;
+  return substringHit;
 }
 
 function stripHtml(html) {
@@ -238,14 +250,17 @@ async function searchBing(terms) {
   return links;
 }
 
-async function searchDeveloperDocs(name, domain) {
-  // The brief's three research angles: how to create the app, what review /
-  // verification / approval gates exist, and scope / rate-limit specifics.
-  const label = domain || name;
+async function searchDeveloperDocs(name, domain, extraTerms = []) {
+  // The brief's three research angles, phrased the way an evaluator would:
+  // console setup, review/verification requirements, scopes/rate limits.
+  // Always the clean brand name - never a raw docs host like
+  // "developers.notion.com", which buries the brand in the query.
+  const app = name || domain;
   const termsList = [
-    `${label} oauth app developer documentation create app`,
-    `${label} oauth app review verification approval requirements`,
-    `${label} oauth scopes rate limits`,
+    `${app} OAuth2 developer console setup create app`,
+    `${app} OAuth app review verification approval requirements`,
+    `${app} OAuth scopes rate limits`,
+    ...extraTerms,
   ];
   const lists = [];
   for (const terms of termsList) {
@@ -414,7 +429,10 @@ async function investigate(rawQuery, log, partialOut) {
   }
 
   try {
-    evidence.search_results = await searchDeveloperDocs(query.name, query.domain);
+    // Case C: beyond the provided page, look for what one page rarely states -
+    // approval wait times and gotchas.
+    const extra = query.kind === 'docs_url' ? [`${query.name} OAuth approval wait time gotchas`] : [];
+    evidence.search_results = await searchDeveloperDocs(query.name, query.domain, extra);
     say(`Search returned ${evidence.search_results.length} candidate doc links`);
   } catch (err) {
     say(`Search failed (${err.message}); falling back to direct URLs`);
@@ -589,4 +607,4 @@ async function investigate(rawQuery, log, partialOut) {
   return evidence;
 }
 
-module.exports = { strongPassageCount, MIN_STRONG_PASSAGES, investigate, normalizeQuery, extractEvidence, stripHtml, extractDeveloperLinks, searchDeveloperDocs, isBlockedUrl, isBlockedIp, apexOf, onApex, docScore, mergeResults, inferApexFromResults };
+module.exports = { THIRD_PARTY_HOSTS, strongPassageCount, MIN_STRONG_PASSAGES, investigate, normalizeQuery, extractEvidence, stripHtml, extractDeveloperLinks, searchDeveloperDocs, isBlockedUrl, isBlockedIp, apexOf, onApex, docScore, mergeResults, inferApexFromResults };
