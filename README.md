@@ -96,9 +96,9 @@ explicitly instead of guessing.
 - Library guides are verified against provider documentation fetched on
   2026-11-03; provider consoles were NOT driven end-to-end for every guide
   (each guide carries a "How this was checked" note saying exactly this).
-- Verified on Linux with Node 22.23 (stdlib only, no native modules, no
-  platform-specific APIs). Not yet executed on Windows; nothing in the code
-  is platform-specific, but that claim is untested, not verified.
+- Tests pass in CI on both ubuntu-latest and windows-latest with Node 22
+  (GitHub Actions matrix, see .github/workflows/test.yml). stdlib only, no
+  native modules, no platform-specific APIs. Developed on Linux Node 22.23.
 - The SSRF guard blocks loopback/private/link-local fetch targets; public
   deployment additionally needs secret storage for keys, rate limiting and
   request bounds, which are out of scope for local review runs.
