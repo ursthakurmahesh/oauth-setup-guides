@@ -318,11 +318,12 @@ const OAUTH_PATHS = ['/docs/oauth', '/oauth', '/docs/authentication', '/docs/aut
 function strongSentences(sentences) { return (sentences || []).filter((x) => STRONG_RE.test(x)); }
 function strongPassageCount(pages) { return pages.reduce((n, pg) => n + strongSentences(pg.sentences).length, 0); }
 
-async function investigate(rawQuery, log) {
+async function investigate(rawQuery, log, partialOut) {
   const say = log || (() => {});
   const query = normalizeQuery(rawQuery);
   say(`Resolving "${query.input}" (${query.kind})`);
   const evidence = { query, search_results: [], pages: [] };
+  if (partialOut) { partialOut.query = query; partialOut.pages = evidence.pages; partialOut.search_results = evidence.search_results; }
 
   try {
     evidence.search_results = await searchDeveloperDocs(query.name, query.domain);

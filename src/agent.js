@@ -28,7 +28,13 @@ async function runJob(job) {
   const say = (line) => pushLog(job, line);
   try {
     say(`Investigating "${job.query}" against live public sources`);
-    const evidence = await investigate(job.query, say);
+    // Hard cap on investigation time: a stalled fetch must end as an honest
+    // incomplete result, never an endless "running" job.
+    const partial = { query: null, search_results: [], pages: [] };
+    const evidence = await Promise.race([
+      investigate(job.query, say, partial),
+      new Promise((resolve) => setTimeout(() => { say('Investigation time limit (150s) reached; continuing with the pages fetched so far'); resolve(partial); }, 150000)),
+    ]);
     job.evidence_pages = evidence.pages.map((p) => p.url);
 
     const { backend, guide } = await synthesize(evidence);
@@ -105,7 +111,7 @@ async function runJob(job) {
         let required = guide.approval.required;
         // Source-support semantics: if the model's own text says the sources
         // do not state approval requirements, it may not claim "not required".
-        const admitsUnknown = /not stated|does not (state|mention)|no mention|not specified/i.test(`${timeline} ${notes}`);
+        const admitsUnknown = /not stated|does not (state|mention)|no mention|not specified|not mention/i.test(notes);
         if ((required === false || required === 'conditional') && admitsUnknown) required = 'unknown';
         if (required == null) required = 'unknown';
         return { required, typical_timeline: timeline, notes };
