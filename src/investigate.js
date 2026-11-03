@@ -25,10 +25,40 @@ function normalizeQuery(raw) {
   if (!input) throw new Error('empty query');
   if (isUrlLike(input)) {
     const withProto = /^https?:\/\//.test(input) ? input : `https://${input}`;
-    const host = new URL(withProto).hostname.replace(/^www\./, '');
-    return { kind: 'domain', domain: host, name: host.split('.')[0], input };
+    const u = new URL(withProto);
+    const host = u.hostname.replace(/^www\./, '');
+    const apex = apexOf(host);
+    // Brand comes from the apex, not the host: "developers.notion.com" is Notion.
+    const name = apex.split('.')[0];
+    // A bare homepage is a domain query; a deeper path is a specific docs
+    // link the user wants used as the primary source.
+    const bare = u.pathname === '/' || u.pathname === '';
+    return { kind: bare ? 'domain' : 'docs_url', url: u.toString(), domain: host, apex, name, input };
   }
-  return { kind: 'name', domain: null, name: input, input };
+  return { kind: 'name', domain: null, apex: null, name: input, input };
+}
+
+// Merge search result lists, first occurrence wins, no duplicates.
+function mergeResults(lists) {
+  const out = [];
+  for (const list of lists) for (const r of list || []) {
+    if (r && r.url && !out.some((o) => o.url === r.url)) out.push(r);
+  }
+  return out;
+}
+
+// Infer the provider apex for a bare brand-name query from the search hits:
+// the best hit whose host contains the brand token. Conservative - no hit
+// means no inference and the caller keeps its honest fallback behaviour.
+function inferApexFromResults(results, name) {
+  const token = String(name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (!token) return null;
+  for (const r of results || []) {
+    const h = hostOf(r.url).replace(/^www\./, '');
+    if (!h) continue;
+    if (h.replace(/[^a-z0-9]/g, '').includes(token)) return apexOf(h);
+  }
+  return null;
 }
 
 function stripHtml(html) {
@@ -209,13 +239,22 @@ async function searchBing(terms) {
 }
 
 async function searchDeveloperDocs(name, domain) {
-  const terms = domain
-    ? `${domain} oauth app developer documentation`
-    : `${name} oauth app developer documentation`;
-  try {
-    return await searchDuckDuckGo(terms);
-  } catch { /* fall through to bing */ }
-  return searchBing(terms);
+  // The brief's three research angles: how to create the app, what review /
+  // verification / approval gates exist, and scope / rate-limit specifics.
+  const label = domain || name;
+  const termsList = [
+    `${label} oauth app developer documentation create app`,
+    `${label} oauth app review verification approval requirements`,
+    `${label} oauth scopes rate limits`,
+  ];
+  const lists = [];
+  for (const terms of termsList) {
+    try { lists.push(await searchDuckDuckGo(terms)); continue; } catch { /* try bing */ }
+    try { lists.push(await searchBing(terms)); } catch { /* engine down; keep what we have */ }
+  }
+  const merged = mergeResults(lists);
+  if (!merged.length) throw new Error('all search engines unreachable');
+  return merged;
 }
 
 // Pull first-party developer/docs links out of a provider's own homepage.
@@ -360,6 +399,20 @@ async function investigate(rawQuery, log, partialOut) {
   const evidence = { query, search_results: [], pages: [] };
   if (partialOut) { partialOut.query = query; partialOut.pages = evidence.pages; partialOut.search_results = evidence.search_results; }
 
+  // Case C: a specific docs URL is the primary source - fetch it exactly as
+  // given before any discovery runs.
+  if (query.kind === 'docs_url') {
+    try {
+      say(`Fetching the provided documentation page directly: ${query.url}`);
+      const { html, finalUrl } = await fetchPage(query.url);
+      const facts = extractEvidence(html);
+      evidence.pages.push({ url: finalUrl, requestedUrl: query.url, ...facts });
+      say(`Extracted ${facts.sentences.length} OAuth-related passages from the provided page`);
+    } catch (err) {
+      say(`Provided page unavailable (${err.message}); falling back to discovery`);
+    }
+  }
+
   try {
     evidence.search_results = await searchDeveloperDocs(query.name, query.domain);
     say(`Search returned ${evidence.search_results.length} candidate doc links`);
@@ -368,7 +421,13 @@ async function investigate(rawQuery, log, partialOut) {
   }
 
   // Rank search candidates; for a domain query keep only first-party hosts.
-  const apex = query.domain ? apexOf(query.domain) : null;
+  // For a bare brand name, infer the provider's apex from the hits so the
+  // full first-party machinery (probes, doc indexes, seeds) also runs.
+  let apex = query.apex || (query.domain ? apexOf(query.domain) : null);
+  if (!apex) {
+    apex = inferApexFromResults(evidence.search_results, query.name);
+    if (apex) say(`Resolved "${query.name}" to provider domain ${apex} from search results`);
+  }
   let ranked = evidence.search_results
     .map((r) => ({ url: r.url, score: docScore(r.url, query) }))
     .sort((a, b) => b.score - a.score);
@@ -530,4 +589,4 @@ async function investigate(rawQuery, log, partialOut) {
   return evidence;
 }
 
-module.exports = { strongPassageCount, MIN_STRONG_PASSAGES, investigate, normalizeQuery, extractEvidence, stripHtml, extractDeveloperLinks, searchDeveloperDocs, isBlockedUrl, isBlockedIp, apexOf, onApex, docScore };
+module.exports = { strongPassageCount, MIN_STRONG_PASSAGES, investigate, normalizeQuery, extractEvidence, stripHtml, extractDeveloperLinks, searchDeveloperDocs, isBlockedUrl, isBlockedIp, apexOf, onApex, docScore, mergeResults, inferApexFromResults };

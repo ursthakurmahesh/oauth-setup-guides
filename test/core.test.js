@@ -136,3 +136,45 @@ test('markdown reports an effort estimate instead of "not measured"', () => {
   assert.ok(!/setup time not measured/.test(md));
   assert.match(md, /approval wait:/);
 });
+
+const { mergeResults, inferApexFromResults } = require('../src/investigate');
+
+test('input type A: a plain brand name stays a name query (discovery resolves it)', () => {
+  const q = normalizeQuery('HubSpot');
+  assert.equal(q.kind, 'name');
+  assert.equal(q.domain, null);
+  assert.equal(q.apex, null);
+});
+
+test('input type B: a homepage URL is a domain query with apex-derived brand', () => {
+  for (const raw of ['figma.com', 'https://www.figma.com', 'https://figma.com/']) {
+    const q = normalizeQuery(raw);
+    assert.equal(q.kind, 'domain', raw);
+    assert.equal(q.apex, 'figma.com', raw);
+    assert.equal(q.name, 'figma', raw);
+  }
+});
+
+test('input type C: a deep docs link is fetched exactly, brand comes from the apex', () => {
+  const q = normalizeQuery('https://developers.notion.com/docs/authorization');
+  assert.equal(q.kind, 'docs_url');
+  assert.equal(q.url, 'https://developers.notion.com/docs/authorization');
+  assert.equal(q.apex, 'notion.com');
+  assert.equal(q.name, 'notion'); // not "developers"
+  const q2 = normalizeQuery('developer.calendly.com/api-docs/');
+  assert.equal(q2.kind, 'docs_url');
+  assert.equal(q2.name, 'calendly');
+  assert.equal(q2.url, 'https://developer.calendly.com/api-docs/');
+});
+
+test('mergeResults dedupes across search angles, first occurrence wins', () => {
+  const m = mergeResults([[{ url: 'https://a.com/1' }, { url: 'https://a.com/2' }], [{ url: 'https://a.com/1' }, { url: 'https://a.com/3' }]]);
+  assert.deepEqual(m.map((r) => r.url), ['https://a.com/1', 'https://a.com/2', 'https://a.com/3']);
+});
+
+test('inferApexFromResults resolves a brand to its provider apex, conservatively', () => {
+  const apex = inferApexFromResults([{ url: 'https://developer.hubspot.com/docs/api/oauth' }, { url: 'https://example.com/x' }], 'HubSpot');
+  assert.equal(apex, 'hubspot.com');
+  assert.equal(inferApexFromResults([{ url: 'https://unrelated-blog.com/post' }], 'HubSpot'), null);
+  assert.equal(inferApexFromResults([], 'HubSpot'), null);
+});
