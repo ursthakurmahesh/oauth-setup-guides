@@ -16,5 +16,14 @@
     "error": null,
     "created_at": "2026-11-03T17:47:28.765Z",
     "finished_at": null
+  },
+  "a59f9f7f066f": {
+    "id": "a59f9f7f066f",
+    "query": "x.com",
+    "status": "running",
+    "slug": null,
+    "error": null,
+    "created_at": "2026-11-03T17:49:03.687Z",
+    "finished_at": null
   }
 }
