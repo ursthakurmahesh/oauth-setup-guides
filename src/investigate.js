@@ -417,8 +417,13 @@ async function investigate(rawQuery, log, partialOut) {
     if (idxTargets.length) say(`Provider doc index lists ${cands.size} auth-related pages; fetching the top ${idxTargets.length}`);
     const idxSet = new Set(idxTargets);
     for (const u of idxTargets) probes.unshift(u);
-    for (const h of hosts) probes.push(`https://${h}/docs/sign-in-with-${String(query.name).toLowerCase()}`);
-    const results = await Promise.allSettled(probes.slice(0, 50).map(async (url) => {
+    const nm = String(query.name).toLowerCase();
+    for (const h of hosts) for (const sp of [`/docs/sign-in-with-${nm}`, `/docs/sign-in-with-${nm}/getting-started`, `/docs/sign-in-with-${nm}/authorization-code`]) probes.push(`https://${h}${sp}`);
+    // Markdown twins of doc pages are served by many docs sites and avoid the
+    // page-size cap on heavy HTML; treat them as first-party text too.
+    for (const u of [...probes]) { if (!/\.md$/.test(u)) { probes.push(`${u}.md`); } }
+    for (const u of probes) if (/\.md$/.test(u)) idxSet.add(u);
+    const results = await Promise.allSettled(probes.slice(0, 90).map(async (url) => {
       const { html, finalUrl } = await fetchPage(url, idxSet.has(url) ? { anyText: true } : {});
       return { url, html, finalUrl };
     }));
@@ -432,7 +437,7 @@ async function investigate(rawQuery, log, partialOut) {
       found.push({ url: finalUrl, requestedUrl: url, ...facts });
     }
     found.sort((a, b) => strongSentences(b.sentences).length - strongSentences(a.sentences).length);
-    for (const f of found.slice(0, 3)) {
+    for (const f of found.slice(0, 4)) {
       evidence.pages.push(f);
       say(`Found OAuth documentation at ${f.url} (${strongSentences(f.sentences).length} relevant passages)`);
     }
