@@ -65,10 +65,10 @@
   "72a1a35d3977": {
     "id": "72a1a35d3977",
     "query": "x.com",
-    "status": "running",
+    "status": "research_only",
     "slug": null,
     "error": null,
     "created_at": "2026-11-03T19:01:18.668Z",
-    "finished_at": null
+    "finished_at": "2026-11-03T19:04:24.109Z"
   }
 }
