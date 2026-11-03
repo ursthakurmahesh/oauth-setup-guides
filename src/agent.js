@@ -31,10 +31,12 @@ async function runJob(job) {
     // Hard cap on investigation time: a stalled fetch must end as an honest
     // incomplete result, never an endless "running" job.
     const partial = { query: null, search_results: [], pages: [] };
+    let timer;
     const evidence = await Promise.race([
       investigate(job.query, say, partial),
-      new Promise((resolve) => setTimeout(() => { say('Investigation time limit (150s) reached; continuing with the pages fetched so far'); resolve(partial); }, 150000)),
+      new Promise((resolve) => { timer = setTimeout(() => { say('Investigation time limit (150s) reached; continuing with the pages fetched so far'); resolve(partial); }, 150000); }),
     ]);
+    clearTimeout(timer);
     job.evidence_pages = evidence.pages.map((p) => p.url);
 
     const { backend, guide } = await synthesize(evidence);
