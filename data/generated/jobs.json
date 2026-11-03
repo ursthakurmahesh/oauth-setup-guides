@@ -2,11 +2,11 @@
   "dfa50771529b": {
     "id": "dfa50771529b",
     "query": "x.com",
-    "status": "running",
+    "status": "research_only",
     "slug": null,
     "error": null,
     "created_at": "2026-11-03T17:45:09.729Z",
-    "finished_at": null
+    "finished_at": "2026-11-03T17:48:53.093Z"
   },
   "1c20dd7aa170": {
     "id": "1c20dd7aa170",
