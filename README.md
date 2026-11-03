@@ -119,6 +119,29 @@ review of the investigation/synthesis code; its findings led to the SSRF
 hardening, server-computed verified flags, evidence allow-listing, failure
 degradation to preserved research, and the rate limits above.
 
+## How live generation decides what to publish
+
+1. **Discovery.** Search plus first-party URL guesses, then the provider's own
+   `llms.txt` / `sitemap.xml`, common OAuth doc paths, markdown twins of doc
+   pages, and links from the OAuth pages to their app-creation/management
+   pages. Only the provider's own domain counts as evidence.
+2. **Evidence gate.** Fewer than 6 OAuth-mechanics passages means no guide:
+   the job ends as an "incomplete investigation" listing what was reviewed
+   (Dropbox's docs are not fetchable with plain HTTP, so it ends this way).
+3. **Slot coverage.** The model must back create-app, credentials,
+   redirect-URI, scopes, approval and agent/human with a verbatim quote. The
+   server checks that each quote really occurs in a fetched page. Create-app,
+   credentials and redirect-URI are mandatory, otherwise nothing is published.
+   Coverage is shown on the guide page.
+4. **Output gate.** At least 3 steps, 2 docs-backed steps, non-empty agent
+   and human sections, and a console link only if a fetched page states it.
+
+These gates keep thin or unsupported drafts from being presented as guides.
+They do not prove a guide is correct: quotes show the docs say something, not
+that a human walked the console. Treat generated guides as docs-derived.
+Other known gaps: docs that need a headless browser are not read, and the
+agent/human split is only marked covered when a documented step says so.
+
 ## Limitations
 
 - The library demonstrates 8 apps, not 100; the schema and pipeline scale to
