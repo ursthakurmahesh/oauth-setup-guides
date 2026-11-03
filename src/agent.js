@@ -65,6 +65,14 @@ async function runJob(job) {
       say('No pages fetched; returning search candidates instead of synthesizing from memory');
       return;
     }
+    // Stale-docs filter: drop pages whose URL or title marks them deprecated,
+    // legacy or archived, but only if current pages remain.
+    const STALE = /deprecat|legacy|archiv|\/v1(\/|$)|obsolete/i;
+    const fresh = evidence.pages.filter((p) => !STALE.test(p.url) && !STALE.test(p.title || ''));
+    if (fresh.length && fresh.length < evidence.pages.length) {
+      say(`Ignoring ${evidence.pages.length - fresh.length} page(s) marked deprecated/legacy/archived`);
+      evidence.pages = fresh;
+    }
     const strong = strongPassageCount(evidence.pages);
     if (strong < MIN_STRONG_PASSAGES) {
       // Evidence gate: general product pages are not OAuth documentation.
