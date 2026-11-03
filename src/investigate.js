@@ -402,6 +402,9 @@ async function investigate(rawQuery, log, partialOut) {
     const hosts = new Set();
     for (const pg of evidence.pages) { const h = hostOf(pg.url); if (h && onApex(pg.url, apex)) hosts.add(h); }
     for (const u of candidateUrls(query)) { const h = hostOf(u); if (h) hosts.add(h); }
+    // Curated official docs hosts on a different apex (e.g. LinkedIn's docs on
+    // Microsoft Learn) are probed like first-party hosts.
+    for (const h of (OFFICIAL_DOC_HOSTS[apex] || [])) hosts.add(h);
     const seen = new Set(evidence.pages.map((pg) => pg.url));
     const probes = [];
     for (const h of hosts) for (const path of OAUTH_PATHS) probes.push(`https://${h}${path}`);
