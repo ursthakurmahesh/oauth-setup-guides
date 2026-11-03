@@ -683,6 +683,14 @@ async function investigate(rawQuery, log, partialOut) {
     if (idxTargets.length) say(`Provider doc index lists ${cands.size} auth-related pages; fetching the top ${idxTargets.length}`);
     const idxSet = new Set(idxTargets);
     for (const u of idxTargets) probes.unshift(u);
+    // Section landing pages often carry the onboarding/registration steps the
+    // leaf pages omit (Figma regression, 2026-11-03: "register your app" sits
+    // on the REST API intro page; the oauth-apps leaf never mentions it).
+    // Fetch the parent section of each auth page found in the provider index.
+    for (const u of idxTargets) {
+      const parent = u.replace(/\/[^/]+\/?$/, '/');
+      if (parent !== u && onApex(parent, apex) && !idxSet.has(parent)) { idxSet.add(parent); probes.unshift(parent); }
+    }
     const nm = String(query.name).toLowerCase();
     for (const h of hosts) for (const sp of [`/docs/sign-in-with-${nm}`, `/docs/sign-in-with-${nm}/getting-started`, `/docs/sign-in-with-${nm}/authorization-code`]) probes.push(`https://${h}${sp}`);
     // Markdown twins of doc pages are served by many docs sites and avoid the
