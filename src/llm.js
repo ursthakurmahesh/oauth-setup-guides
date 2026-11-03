@@ -45,6 +45,8 @@ Rules: use ONLY facts present in the evidence. If the evidence does not say how 
 
 function buildUserPrompt(evidence) {
   const parts = [`App query: ${evidence.query.input}`, ''];
+  // Coverage-gate feedback from a rejected previous draft (verbatim quotes).
+  if (evidence.feedback) parts.push(`FEEDBACK ON YOUR PREVIOUS DRAFT: ${evidence.feedback}`, '');
   for (const page of evidence.pages) {
     parts.push(`PAGE: ${page.url}`);
     if (page.title) parts.push(`Title: ${page.title}`);
