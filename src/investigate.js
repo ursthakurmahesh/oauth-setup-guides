@@ -129,7 +129,23 @@ async function resolvesPrivate(hostname) {
   }
 }
 
-const MAX_BODY_CHARS = 100000; // also bounds the regex work in extraction
+const MAX_BODY_CHARS = 100000; // bounds the regex work in extraction (post-strip)
+const MAX_RAW_CHARS = 2500000; // raw read bound; non-content regions are stripped before the body cap
+
+// Remove regions that never carry readable documentation (inline CSS/JS,
+// SVG, comments) BEFORE the body cap is applied. Real case: Pinterest's docs
+// ship ~770KB of inline assets before the article, so a raw byte cap cut the
+// page before any OAuth content (live failure 2026-11-03). Stripping first
+// keeps the extraction cap bounded while reaching the actual text.
+function stripNonContent(html) {
+  return html
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, ' ')
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style\s*>/gi, ' ')
+    .replace(/<svg\b[^>]*>[\s\S]*?<\/svg\s*>/gi, ' ')
+    .replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript\s*>/gi, ' ')
+    .replace(/<template\b[^>]*>[\s\S]*?<\/template\s*>/gi, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ');
+}
 
 async function readCapped(res, cap) {
   if (!res.body) return (await res.text()).slice(0, cap);
@@ -174,7 +190,9 @@ async function fetchPage(url, opts = {}) {
     const type = res.headers.get('content-type') || '';
     if (!opts.anyText && !type.includes('html')) throw new Error(`not html (${type}) for ${current}`);
     if (opts.anyText && /^(image|video|audio|application\/(octet|pdf|zip))/.test(type)) throw new Error(`binary (${type}) for ${current}`);
-    const text = await readCapped(res, opts.cap || MAX_BODY_CHARS);
+    const raw = await readCapped(res, opts.rawCap || MAX_RAW_CHARS);
+    const cap = opts.cap || MAX_BODY_CHARS;
+    const text = opts.anyText ? raw.slice(0, cap) : stripNonContent(raw).slice(0, cap);
     return { html: text, finalUrl: current };
   }
   throw new Error(`too many redirects from ${url}`);
@@ -727,4 +745,4 @@ async function investigate(rawQuery, log, partialOut) {
   return evidence;
 }
 
-module.exports = { THIRD_PARTY_HOSTS, strongPassageCount, MIN_STRONG_PASSAGES, investigate, normalizeQuery, extractEvidence, stripHtml, extractDeveloperLinks, searchDeveloperDocs, isBlockedUrl, isBlockedIp, apexOf, onApex, docScore, mergeResults, inferApexFromResults, probeBrandApex };
+module.exports = { stripNonContent, THIRD_PARTY_HOSTS, strongPassageCount, MIN_STRONG_PASSAGES, investigate, normalizeQuery, extractEvidence, stripHtml, extractDeveloperLinks, searchDeveloperDocs, isBlockedUrl, isBlockedIp, apexOf, onApex, docScore, mergeResults, inferApexFromResults, probeBrandApex };
