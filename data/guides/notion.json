@@ -1,0 +1,68 @@
+{
+  "slug": "notion",
+  "app": "Notion",
+  "website": "https://www.notion.so",
+  "console_url": "https://www.notion.so/profile/integrations",
+  "difficulty": "easy",
+  "summary": "Notion explicitly lets you start OAuth authorization as soon as the integration's credentials and redirect URI are configured; Marketplace submission or review is not required. The main choice is installation scope, which cannot be changed later.",
+  "approval": {
+    "required": false,
+    "typical_timeline": "Minutes. You can start the OAuth flow immediately after creating the integration.",
+    "notes": "Listing in Notion's Marketplace is optional and managed separately through the Listings section."
+  },
+  "steps": [
+    {
+      "title": "Create an OAuth integration in the Developer portal",
+      "detail": "New OAuth integration: fill in connection details, set redirect URI(s) under OAuth configuration, and choose the installation scope.",
+      "source": "https://developers.notion.com/docs/authorization",
+      "verified": true
+    },
+    {
+      "title": "Choose installation scope carefully",
+      "detail": "Either Any workspace (public integration) or a specific set of workspaces (scoped integration). This cannot be changed after creation.",
+      "source": "https://developers.notion.com/docs/authorization",
+      "verified": true
+    },
+    {
+      "title": "Get the authorization URL and credentials",
+      "detail": "The Configuration tab provides the authorization URL, client ID and secret. Keep secrets out of source control.",
+      "source": "https://developers.notion.com/docs/authorization",
+      "verified": true
+    },
+    {
+      "title": "Send users through the authorization prompt",
+      "detail": "Users see your connection's capabilities, pick pages/databases in a page picker, and Notion redirects back to your redirect URI with a code.",
+      "source": "https://developers.notion.com/docs/authorization",
+      "verified": true
+    },
+    {
+      "title": "Exchange the code for an access token",
+      "detail": "POST the temporary code to Notion's token endpoint; store the returned access token for future API calls.",
+      "source": "https://developers.notion.com/docs/authorization",
+      "verified": true
+    }
+  ],
+  "nuances": [
+    "The page picker only shows pages the user has full access to, and if the user abandons the flow after Allow access, the connection gets nothing.",
+    "You can attach a public Notion page as an optional template that users duplicate during the auth flow.",
+    "For workspace-internal automation, internal connections (static token, manual page sharing) or personal access tokens may fit better than OAuth.",
+    "Notion also requires a Notion-Version header on API requests when not using their SDK."
+  ],
+  "agent_can_do": [
+    "Advise OAuth integration vs internal connection vs PAT for your use case",
+    "Generate the authorization link and token-exchange code",
+    "Explain the page-picker consent model to your users"
+  ],
+  "human_must_do": [
+    "Create the integration in your workspace's Developer portal",
+    "Decide the (irreversible) installation scope",
+    "Keep client credentials out of the repo"
+  ],
+  "sources": [
+    {
+      "title": "Authorization - Notion Developers",
+      "url": "https://developers.notion.com/docs/authorization"
+    }
+  ],
+  "last_checked": "2026-11-03"
+}

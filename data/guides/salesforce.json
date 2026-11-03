@@ -1,0 +1,65 @@
+{
+  "slug": "salesforce",
+  "app": "Salesforce",
+  "website": "https://www.salesforce.com",
+  "console_url": "https://login.salesforce.com",
+  "difficulty": "moderate",
+  "summary": "OAuth works through an external client app (or legacy connected app) configured in Setup. No Salesforce approval is needed for OAuth itself, but a big change just landed: creating new connected apps is restricted as of Spring '26, and Salesforce pushes external client apps instead.",
+  "approval": {
+    "required": "conditional",
+    "typical_timeline": "Creating the external client app and running OAuth: same day. AppExchange listing is a separate security review (details not verified in this pass).",
+    "notes": "As of Spring '26 you cannot create new connected apps without contacting Salesforce Support; use external client apps."
+  },
+  "steps": [
+    {
+      "title": "Create an external client app in Setup",
+      "detail": "Setup -> Apps -> External Client Apps. Legacy path (New Connected App) is restricted as of Spring '26 and requires contacting Salesforce Support.",
+      "source": "https://developer.salesforce.com/docs/platform/mobile-sdk/guide/connected-apps-howto.html",
+      "verified": true
+    },
+    {
+      "title": "Enable OAuth settings",
+      "detail": "Configure callback URL and OAuth scopes for the API integration.",
+      "source": "https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/intro_oauth_and_connected_apps.htm",
+      "verified": true
+    },
+    {
+      "title": "Pick the right OAuth flow",
+      "detail": "Salesforce supports several OAuth 2.0 flows; each is a three-step pattern: request access, receive tokens, resource server validates them.",
+      "source": "https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/intro_oauth_and_connected_apps.htm",
+      "verified": true
+    },
+    {
+      "title": "Test against a sandbox or developer edition org",
+      "detail": "Use a free Developer Edition org to exercise the flow before pointing at a customer org.",
+      "source": "https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/intro_oauth_and_connected_apps.htm",
+      "verified": true
+    }
+  ],
+  "nuances": [
+    "The connected-app to external-client-app transition is recent; older tutorials and Stack Overflow answers still describe the deprecated path.",
+    "Org admins control whether users can self-authorize the app or installs need admin pre-approval.",
+    "AppExchange distribution involves Salesforce's security review, which is a much bigger lift than OAuth setup."
+  ],
+  "agent_can_do": [
+    "Tell you whether current docs mean external client app or connected app for your org version",
+    "Generate the OAuth flow for your chosen grant type",
+    "Keep your plan aligned with the Spring '26 change"
+  ],
+  "human_must_do": [
+    "Create the external client app with your Salesforce admin",
+    "Decide install policies for customer orgs",
+    "Drive AppExchange security review if you list"
+  ],
+  "sources": [
+    {
+      "title": "Authorization Through External Client Apps or Connected Apps and OAuth 2.0",
+      "url": "https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/intro_oauth_and_connected_apps.htm"
+    },
+    {
+      "title": "Create a Connected App (Mobile SDK guide, includes Spring '26 restriction note)",
+      "url": "https://developer.salesforce.com/docs/platform/mobile-sdk/guide/connected-apps-howto.html"
+    }
+  ],
+  "last_checked": "2026-11-03"
+}

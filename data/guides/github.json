@@ -1,0 +1,67 @@
+{
+  "slug": "github",
+  "app": "GitHub",
+  "website": "https://github.com",
+  "console_url": "https://github.com/settings/developers",
+  "difficulty": "easy",
+  "summary": "One of the fastest OAuth setups available. Registering a GitHub App or OAuth App is self-serve, takes minutes, and no approval or review is needed before real users can authorize your app.",
+  "approval": {
+    "required": false,
+    "typical_timeline": "Minutes. No approval or review needed to create the app or let users authorize it.",
+    "notes": "Listing on the GitHub Marketplace is optional and has its own separate review; you do not need it for OAuth."
+  },
+  "steps": [
+    {
+      "title": "Decide between a GitHub App and an OAuth App",
+      "detail": "GitHub's own docs steer new integrations toward GitHub Apps (fine-grained permissions, installation model). OAuth Apps are the older, simpler option for sign-in-only use cases.",
+      "source": "https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app",
+      "verified": true
+    },
+    {
+      "title": "Register the app in Developer settings",
+      "detail": "Profile picture -> Settings -> Developer settings -> GitHub Apps -> New GitHub App (or OAuth Apps -> New OAuth App). Choose a name unique across GitHub, set the Homepage URL, and add up to 10 callback URLs.",
+      "source": "https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app",
+      "verified": true
+    },
+    {
+      "title": "Choose minimum permissions",
+      "detail": "For each permission pick Read-only, Read & write, or No access. GitHub recommends the minimum necessary.",
+      "source": "https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app",
+      "verified": true
+    },
+    {
+      "title": "Create the app and generate credentials",
+      "detail": "After Create, collect the Client ID and generate a Client Secret. Keep user authorization tokens expiring (GitHub's recommended default).",
+      "source": "https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app",
+      "verified": true
+    },
+    {
+      "title": "Implement the OAuth web flow or device flow",
+      "detail": "Send users to the authorize URL, exchange the returned code for a user access token. Device flow is available for headless/CLI apps.",
+      "source": "https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app",
+      "verified": true
+    }
+  ],
+  "nuances": [
+    "An account can register at most 100 GitHub Apps; no limit on installations.",
+    "The app name must be unique across all of GitHub and cannot match an existing account name (unless it is your own).",
+    "No review gates any of this; the only gated surface is the optional Marketplace listing."
+  ],
+  "agent_can_do": [
+    "Walk the registration form with you and explain every field",
+    "Generate the OAuth flow code for your stack",
+    "Map the permissions your integration actually needs"
+  ],
+  "human_must_do": [
+    "Click through the registration in your own GitHub account",
+    "Store the client secret safely",
+    "Decide GitHub App vs OAuth App for your product model"
+  ],
+  "sources": [
+    {
+      "title": "Registering a GitHub App - GitHub Docs",
+      "url": "https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app"
+    }
+  ],
+  "last_checked": "2026-11-03"
+}

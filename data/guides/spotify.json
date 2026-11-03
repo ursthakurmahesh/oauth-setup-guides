@@ -1,0 +1,71 @@
+{
+  "slug": "spotify",
+  "app": "Spotify",
+  "website": "https://www.spotify.com",
+  "console_url": "https://developer.spotify.com/dashboard",
+  "difficulty": "easy",
+  "summary": "Dashboard app creation is instant, but new apps start in development mode capped at 5 allowlisted users, and since May 15 2025 only organizations (not individuals) can apply for extended quota mode. For agent builders, Spotify is easy to prototype and hard to launch at scale.",
+  "approval": {
+    "required": "conditional",
+    "typical_timeline": "Development mode: instant. Extended quota mode: application review, organizations only, timeline not stated in fetched sources.",
+    "notes": "The app owner needs a Spotify Premium account for development-mode apps to function."
+  },
+  "steps": [
+    {
+      "title": "Create an app in the Developer Dashboard",
+      "detail": "Log in with your Spotify account and create the app to get client credentials.",
+      "source": "https://developer.spotify.com/documentation/web-api",
+      "verified": true
+    },
+    {
+      "title": "Add redirect URIs in App Settings",
+      "detail": "Register the exact redirect URIs your OAuth flow will use.",
+      "source": "https://developer.spotify.com/documentation/web-api",
+      "verified": true
+    },
+    {
+      "title": "Understand development mode limits",
+      "detail": "New apps serve up to 5 authenticated users; each extra user must be allowlisted by name and Spotify email under Settings -> Users Management. Non-allowlisted users get 403s.",
+      "source": "https://developer.spotify.com/documentation/web-api/concepts/quota-modes",
+      "verified": true
+    },
+    {
+      "title": "Plan around extended quota mode for launch",
+      "detail": "Unlimited users and higher rate limits require a Quota Extension Request; as of May 15 2025 Spotify accepts applications from organizations only, sent through a company email via their form.",
+      "source": "https://developer.spotify.com/documentation/web-api/concepts/quota-modes",
+      "verified": true
+    },
+    {
+      "title": "Implement the OAuth flow",
+      "detail": "Standard authorization code flow against Spotify's accounts service; mind the development-mode request quota buckets (429 QUOTA_EXCEEDED when exceeded).",
+      "source": "https://developer.spotify.com/documentation/web-api/concepts/quota-modes",
+      "verified": true
+    }
+  ],
+  "nuances": [
+    "The 5-user development cap (reduced from 25 in Spotify's 2025 policy tightening) makes Spotify unsuitable for individual-developer public launches right now.",
+    "Development mode has its own request quota per developer account, separate from rate limits.",
+    "Extended quota mode also unlocks a higher rate limit, not just more users."
+  ],
+  "agent_can_do": [
+    "Set up the authorization code flow and token refresh code",
+    "Check whether your user count and org status make Spotify viable before you build",
+    "Model the development-mode quota in your test plan"
+  ],
+  "human_must_do": [
+    "Own the Spotify (Premium) account behind the app",
+    "Decide whether the organization-only quota policy blocks your launch",
+    "Submit the quota extension form from a company email"
+  ],
+  "sources": [
+    {
+      "title": "Spotify Web API",
+      "url": "https://developer.spotify.com/documentation/web-api"
+    },
+    {
+      "title": "Quota modes",
+      "url": "https://developer.spotify.com/documentation/web-api/concepts/quota-modes"
+    }
+  ],
+  "last_checked": "2026-11-03"
+}

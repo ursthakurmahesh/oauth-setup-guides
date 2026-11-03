@@ -1,0 +1,14 @@
+{
+  "name": "oauth-setup-guides",
+  "version": "1.0.0",
+  "description": "A library of OAuth app setup guides plus a live agent that investigates any app and generates a source-backed setup guide.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}

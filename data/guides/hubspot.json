@@ -1,0 +1,67 @@
+{
+  "slug": "hubspot",
+  "app": "HubSpot",
+  "website": "https://www.hubspot.com",
+  "console_url": "https://developers.hubspot.com",
+  "difficulty": "moderate",
+  "summary": "HubSpot OAuth needs a free developer account plus an app with Auth settings (client ID/secret, scopes, redirect URL). Install via the authorization URL. Scopes interact with customer account tiers, which is the main nuance.",
+  "approval": {
+    "required": "conditional",
+    "typical_timeline": "Creating the app and running OAuth: same day. Listing in the HubSpot Marketplace is optional and separately reviewed (review process not verified in this pass).",
+    "notes": "No approval is needed for ordinary OAuth installs into customer accounts."
+  },
+  "steps": [
+    {
+      "title": "Create a HubSpot developer account and app",
+      "detail": "The developer account hosts your app; the app's Auth settings page holds the client ID, client secret and scope configuration.",
+      "source": "https://developers.hubspot.com/docs/api/working-with-oauth",
+      "verified": true
+    },
+    {
+      "title": "Configure scopes",
+      "detail": "Check the scopes your app needs. Scopes checked in settings are treated as required and must appear in the authorization URL's scope parameter.",
+      "source": "https://developers.hubspot.com/docs/api/working-with-oauth",
+      "verified": true
+    },
+    {
+      "title": "Use optional_scope for tiered features",
+      "detail": "If your app spans HubSpot tiers, put tier-gated scopes in optional_scope so free accounts can still install; inspect the token afterwards to see what was granted.",
+      "source": "https://developers.hubspot.com/docs/api/working-with-oauth",
+      "verified": true
+    },
+    {
+      "title": "Set the redirect URL",
+      "detail": "Must use https in production (http allowed for localhost testing); domains required, IP addresses not supported.",
+      "source": "https://developers.hubspot.com/docs/api/working-with-oauth",
+      "verified": true
+    },
+    {
+      "title": "Send users to the authorization URL and exchange the code",
+      "detail": "https://app.hubspot.com/oauth/authorize?client_id=...&scope=...&redirect_uri=... returns a code; exchange it with the client secret for access_token and refresh_token.",
+      "source": "https://developers.hubspot.com/docs/api/working-with-oauth",
+      "verified": true
+    }
+  ],
+  "nuances": [
+    "Users get an error if they install into an account that lacks access to a required scope.",
+    "Access tokens expire; the refresh token is how you renew them.",
+    "An authorization URL can target a specific account by inserting the account ID in the path."
+  ],
+  "agent_can_do": [
+    "Split your scope list into required vs optional by HubSpot tier",
+    "Generate the authorization URL and token exchange/refresh code",
+    "Explain install errors caused by account-tier mismatches"
+  ],
+  "human_must_do": [
+    "Create the developer account and app",
+    "Decide your Marketplace listing strategy",
+    "Store and rotate the client secret safely"
+  ],
+  "sources": [
+    {
+      "title": "Working with OAuth - HubSpot Developers",
+      "url": "https://developers.hubspot.com/docs/api/working-with-oauth"
+    }
+  ],
+  "last_checked": "2026-11-03"
+}

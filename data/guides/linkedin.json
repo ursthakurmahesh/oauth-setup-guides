@@ -1,0 +1,61 @@
+{
+  "slug": "linkedin",
+  "app": "LinkedIn",
+  "website": "https://www.linkedin.com",
+  "console_url": "https://www.linkedin.com/developers/apps",
+  "difficulty": "moderate",
+  "summary": "Creating the app is quick, but LinkedIn gates API surface behind 'products' you must request on the app's Products tab. Sign In with LinkedIn is self-serve; marketing and talent products involve applications and review.",
+  "approval": {
+    "required": "conditional",
+    "typical_timeline": "App creation: minutes. Self-serve products: minutes. Reviewed products (e.g. Marketing Developer Platform): application + review, timeline not stated in fetched sources.",
+    "notes": "The app must be associated with a LinkedIn Page and verified before products can be used."
+  },
+  "steps": [
+    {
+      "title": "Create an app in the LinkedIn developer portal",
+      "detail": "Apps are tied to a LinkedIn Page; you need to verify that association.",
+      "source": "https://learn.microsoft.com/en-us/linkedin/shared/authentication/authentication",
+      "verified": true
+    },
+    {
+      "title": "Request products on the Products tab",
+      "detail": "Each product unlocks scopes/APIs. Open member permissions such as profile and email are available through the self-serve Sign In product.",
+      "source": "https://learn.microsoft.com/en-us/linkedin/shared/authentication/authentication",
+      "verified": true
+    },
+    {
+      "title": "Choose the right flow: 3-legged vs 2-legged",
+      "detail": "Member Authorization (3-legged) is for acting on a member's behalf and is the common case; Application Authorization (2-legged client credentials) covers non-member-specific resources and is not supported by all APIs.",
+      "source": "https://learn.microsoft.com/en-us/linkedin/shared/authentication/authentication",
+      "verified": true
+    },
+    {
+      "title": "Implement the authorization code flow",
+      "detail": "Redirect the member, exchange the code, and request only the minimal scopes for your use case.",
+      "source": "https://learn.microsoft.com/en-us/linkedin/shared/authentication/authentication",
+      "verified": true
+    }
+  ],
+  "nuances": [
+    "Not every API supports 2-legged OAuth; Marketing APIs require member authorization.",
+    "LinkedIn does not support TLS 1.0.",
+    "Requesting more products than you need slows approval and violates minimum-permission guidance."
+  ],
+  "agent_can_do": [
+    "Match your feature list to the right LinkedIn products and flows",
+    "Generate the 3-legged flow code",
+    "Flag which scopes need reviewed products before you promise a launch date"
+  ],
+  "human_must_do": [
+    "Create the app and verify the LinkedIn Page association",
+    "Submit product access applications",
+    "Represent your company accurately in review answers"
+  ],
+  "sources": [
+    {
+      "title": "Authenticating with OAuth 2.0 - Microsoft Learn",
+      "url": "https://learn.microsoft.com/en-us/linkedin/shared/authentication/authentication"
+    }
+  ],
+  "last_checked": "2026-11-03"
+}

@@ -1,0 +1,76 @@
+{
+  "slug": "google",
+  "app": "Google",
+  "website": "https://developers.google.com",
+  "console_url": "https://console.cloud.google.com",
+  "difficulty": "hard",
+  "summary": "Creating OAuth credentials is quick, but Google's approval story is the heavy one: anything beyond non-sensitive scopes needs formal verification, and restricted scopes take about 6 weeks plus a security assessment. Unverified apps are capped at 100 new users.",
+  "approval": {
+    "required": "conditional",
+    "typical_timeline": "Brand verification 2-3 business days; sensitive-scope verification ~10 business days; restricted-scope verification ~6 weeks plus a security assessment (Google's published estimates, not guaranteed).",
+    "notes": "Apps using only non-sensitive scopes skip verification, but then only your domain (not app name/logo) shows on the consent screen. Restricted scopes also need annual re-verification."
+  },
+  "steps": [
+    {
+      "title": "Create a Google Cloud project and configure the consent screen",
+      "detail": "In Google Cloud Console, open the Google Auth Platform, set app name, user support email, and audience (external for public apps).",
+      "source": "https://support.google.com/cloud/answer/10311615",
+      "verified": true
+    },
+    {
+      "title": "Add scopes and check their category",
+      "detail": "Cloud Console labels each scope non-sensitive, sensitive, or restricted automatically. This category drives whether verification is mandatory.",
+      "source": "https://support.google.com/cloud/answer/9110914",
+      "verified": true
+    },
+    {
+      "title": "Create OAuth client credentials",
+      "detail": "Create an OAuth 2.0 Client ID (web, iOS, Android, etc.) with authorized redirect URIs.",
+      "source": "https://support.google.com/cloud/answer/9110914",
+      "verified": true
+    },
+    {
+      "title": "Prepare verification materials if you use sensitive or restricted scopes",
+      "detail": "Production external apps need a homepage on a verified domain, a privacy policy on the same domain linked from the homepage and the consent screen, and terms links. You cannot submit for verification without them.",
+      "source": "https://support.google.com/cloud/answer/10311615",
+      "verified": true
+    },
+    {
+      "title": "Submit for verification and respond to review findings",
+      "detail": "Brand verification can complete in minutes to 2-3 business days. Sensitive scope review averages ~10 business days; restricted ~6 weeks plus a third-party security assessment. Failed checks appear in a View issues panel; you can fix and re-verify or request additional review.",
+      "source": "https://support.google.com/cloud/answer/13463817",
+      "verified": true
+    }
+  ],
+  "nuances": [
+    "Unverified apps using sensitive/restricted scopes show an 'unverified app' warning and are capped at 100 new users; hitting the cap can disable Google sign-in.",
+    "Compliant verification results expire in 7 days if you do not publish the branding.",
+    "Changing app name, logo, or URLs on a verified app creates a new draft that needs re-verification.",
+    "Restricted-scope apps must re-verify annually."
+  ],
+  "agent_can_do": [
+    "Classify your scopes by sensitivity and predict which verification tier applies",
+    "Draft the privacy policy and homepage checklist against Google's stated requirements",
+    "Track the verification status and interpret View issues findings"
+  ],
+  "human_must_do": [
+    "Own the Google Cloud project and verified domain",
+    "Submit the verification request from your console",
+    "Complete the security assessment for restricted scopes"
+  ],
+  "sources": [
+    {
+      "title": "OAuth App Verification Help Center",
+      "url": "https://support.google.com/cloud/answer/9110914"
+    },
+    {
+      "title": "Verification FAQ (timelines, user caps)",
+      "url": "https://support.google.com/cloud/answer/13463817"
+    },
+    {
+      "title": "Manage OAuth App Branding",
+      "url": "https://support.google.com/cloud/answer/10311615"
+    }
+  ],
+  "last_checked": "2026-11-03"
+}

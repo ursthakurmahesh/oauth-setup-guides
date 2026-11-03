@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OAuth Setup Guides</title>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<header>
+  <h1>OAuth Setup Guides</h1>
+  <p class="tagline">Look up an app, get a shareable guide for creating and approving its OAuth app - or let the agent investigate a new one live.</p>
+</header>
+<main>
+  <section class="lookup">
+    <input id="search" type="search" placeholder="Search the library (e.g. google, slack, spotify)" autocomplete="off">
+    <div id="status" class="status"></div>
+    <div id="cards" class="cards"></div>
+  </section>
+
+  <section class="generate">
+    <h2>Generate a guide for any app</h2>
+    <p class="muted">Enter an app name or website. The agent investigates the provider's real documentation and generates a source-backed guide in real time.</p>
+    <form id="genform">
+      <input id="genquery" type="text" placeholder="e.g. figma.com or Linear" required>
+      <button type="submit">Investigate &amp; generate</button>
+    </form>
+    <div id="backend" class="status"></div>
+    <ol id="genlog" class="log"></ol>
+    <div id="genresult"></div>
+  </section>
+</main>
+<footer>
+  <p>Every guide states what was checked against a live source and what remains uncertain. Generated guides are saved and shareable.</p>
+</footer>
+<script src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,72 @@
+{
+  "slug": "slack",
+  "app": "Slack",
+  "website": "https://slack.com",
+  "console_url": "https://api.slack.com/apps",
+  "difficulty": "moderate",
+  "summary": "Single-workspace install is instant, and even public unlisted distribution is self-serve once you complete a checklist. Slack's review only gates the optional Marketplace listing. HTTPS endpoints are mandatory for distributed apps.",
+  "approval": {
+    "required": "conditional",
+    "typical_timeline": "Single-workspace: instant. Unlisted public distribution: minutes (self-serve checklist). Marketplace listing: requires Slack's review against their guidelines (timeline not stated in fetched sources).",
+    "notes": "Customer workspaces can impose their own admin approval on installs regardless of Slack's stance."
+  },
+  "steps": [
+    {
+      "title": "Create the app at api.slack.com/apps",
+      "detail": "A new Slack app is tied to one workspace. Install App to Workspace gives you tokens immediately for that workspace.",
+      "source": "https://api.slack.com/start/distributing",
+      "verified": true
+    },
+    {
+      "title": "Configure OAuth scopes",
+      "detail": "Add the bot/user scopes your app needs in app settings; scopes attach to your tokens.",
+      "source": "https://api.slack.com/authentication",
+      "verified": true
+    },
+    {
+      "title": "Build the OAuth 2.0 flow for multi-workspace installs",
+      "detail": "To be installed on other workspaces your app must handle authorization programmatically and generate tokens per workspace.",
+      "source": "https://api.slack.com/start/distributing",
+      "verified": true
+    },
+    {
+      "title": "Enable SSL on every endpoint",
+      "detail": "Distributed apps must support SSL for OAuth redirect URLs, interaction payload request URLs, options load URLs, and Events API URLs.",
+      "source": "https://api.slack.com/start/distributing",
+      "verified": true
+    },
+    {
+      "title": "Activate public distribution or submit to the Marketplace",
+      "detail": "Dashboard -> Manage Distribution -> complete the checklist -> Activate Public Distribution for unlisted sharing (Add to Slack button, shareable URL). Commercial apps should submit to the Slack Marketplace, which is reviewed.",
+      "source": "https://api.slack.com/start/distributing",
+      "verified": true
+    }
+  ],
+  "nuances": [
+    "Deactivating unlisted distribution removes the app from every workspace except the original one; once Marketplace-listed you must discontinue the listing instead.",
+    "Apps with scopes beyond bot/incoming-webhook/commands/identify are auto-uninstalled if the installing user leaves the workspace.",
+    "Some customer workspaces restrict installs to admins or to Marketplace-listed apps only.",
+    "Enterprise Grid orgs change how installs work; read the Enterprise org guide if you target large customers."
+  ],
+  "agent_can_do": [
+    "Map your feature list to the minimal scope set",
+    "Generate the OAuth exchange and token-storage code",
+    "Check your endpoints against the SSL/distribution checklist"
+  ],
+  "human_must_do": [
+    "Create the app under your Slack account",
+    "Submit and respond to Marketplace review if you list",
+    "Handle workspace admin approval flows for enterprise customers"
+  ],
+  "sources": [
+    {
+      "title": "App lifecycle & distribution",
+      "url": "https://api.slack.com/start/distributing"
+    },
+    {
+      "title": "Authentication overview",
+      "url": "https://api.slack.com/authentication"
+    }
+  ],
+  "last_checked": "2026-11-03"
+}
