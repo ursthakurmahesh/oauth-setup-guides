@@ -433,7 +433,7 @@ function extractEvidence(html) {
     .split(/(?<=[.!?])\s+|\n+/)
     .map((s) => s.trim())
     .filter((s) => s.length > 40 && s.length < 500)
-    .filter((s) => /oauth|client id|client secret|redirect|callback|consent|scope|verif|review|approv|app registr|developer (account|portal|dashboard)|create (an )?app/i.test(s))
+    .filter((s) => /oauth|client id|client secret|redirect|callback|consent|scope|verif|review|approv|app registr|developer (account|portal|dashboard)|create (an )?app|register (an |your )?(oauth )?(app|application|integration)|add (an|a|your)? ?new? ?app/i.test(s))
     .slice(0, 60);
   const links = [];
   for (const m2 of html.matchAll(/(?:href="|\]\()(\/[^"')\s]+|https?:\/\/[^"')\s]+)/g)) { if (links.length < 120 && !links.includes(m2[1])) links.push(m2[1]); }
@@ -481,6 +481,11 @@ function hostOf(url) {
 // discoverable from their own apex (seed URLs only - the content is still
 // fetched, extracted and gated like any other evidence).
 const OFFICIAL_DOC_SEEDS = {
+  // Verified live 2026-11-03: carries the verbatim "Register an OAuth
+  // integration" app-creation passage the developer portal gates.
+  'airtable.com': [
+    'https://support.airtable.com/articles/9362950318-using-builder-hub-in-airtable',
+  ],
   'asana.com': [
     'https://developers.asana.com/docs/oauth',
     'https://developers.asana.com/docs/getting-started',
