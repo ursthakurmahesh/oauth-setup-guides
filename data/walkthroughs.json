@@ -5,7 +5,8 @@
       "app_registration",
       "credential_issuance"
     ],
-    "note": "An agent created a real OAuth app in the GitHub console and generated a client secret (sudo-mode password re-confirmation required). The OAuth authorization/token exchange was not exercised."
+    "note": "An agent created a real OAuth app in the GitHub console and generated a client secret (sudo-mode password re-confirmation required). The OAuth authorization/token exchange was not exercised.",
+    "apex": "github.com"
   },
   "linear": {
     "tested_at": "2026-11-03",
@@ -13,6 +14,7 @@
       "app_registration",
       "credential_issuance"
     ],
-    "note": "An agent created a real OAuth application in a Linear workspace (Settings > API) and was issued a client ID and auto-generated client secret. No approval, review, or sudo re-confirmation was required. The OAuth authorization/token exchange was not exercised."
+    "note": "An agent created a real OAuth application in a Linear workspace (Settings > API) and was issued a client ID and auto-generated client secret. No approval, review, or sudo re-confirmation was required. The OAuth authorization/token exchange was not exercised.",
+    "apex": "linear.app"
   }
 }

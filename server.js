@@ -11,13 +11,28 @@ const { startGeneration, getJob, agentStatus } = require('./src/agent');
 const { guideToMarkdown } = require('./src/markdown');
 const { estimateEffort } = require('./src/effort');
 const { buildConfidence, buildStepConfidence } = require('./src/confidence');
+const { apexOf } = require('./src/investigate');
 const { pullGenerated } = require('./src/persist');
 
 let WALKTHROUGHS = {};
 try {
   WALKTHROUGHS = JSON.parse(fs.readFileSync(path.join(__dirname, 'data', 'walkthroughs.json'), 'utf8'));
 } catch { /* walkthrough records are optional */ }
-const walkthroughFor = (slug) => WALKTHROUGHS[slug] || null;
+// Walkthrough records attach by canonical provider identity (slug, else the
+// guide's own apex from website/console/sources) - never by display name, so
+// a generated guide can't claim testing for an unrelated provider.
+function walkthroughFor(g) {
+  if (!g) return null;
+  if (WALKTHROUGHS[g.slug]) return WALKTHROUGHS[g.slug];
+  const hosts = [g.website, g.console_url, ...(g.sources || []).map((s) => s.url)].filter(Boolean);
+  for (const h of hosts) {
+    let apex;
+    try { apex = apexOf(new URL(h).hostname); } catch { continue; }
+    const hit = Object.values(WALKTHROUGHS).find((w) => w.apex === apex);
+    if (hit) return hit;
+  }
+  return null;
+}
 
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -158,7 +173,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && mdMatch) {
       const g = getGuide(mdMatch[1]);
       if (!g) return sendJson(res, 404, { error: 'guide not found' });
-      return send(res, 200, guideToMarkdown(g, walkthroughFor(g.slug)), MIME['.md']);
+      return send(res, 200, guideToMarkdown(g, walkthroughFor(g)), MIME['.md']);
     }
     const apiMatch = p.match(/^\/api\/guides\/([a-z0-9-]+)$/);
     if (req.method === 'GET' && apiMatch) {
@@ -170,7 +185,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && pageMatch) {
       const g = getGuide(pageMatch[1]);
       if (!g) return send(res, 404, '<h1>guide not found</h1>', 'text/html; charset=utf-8');
-      return send(res, 200, renderGuidePage(g, walkthroughFor(g.slug)), 'text/html; charset=utf-8');
+      return send(res, 200, renderGuidePage(g, walkthroughFor(g)), 'text/html; charset=utf-8');
     }
     if (req.method === 'POST' && p === '/api/generate') {
       if (rateLimited(`gen:${ip}`, 5, 600000)) {

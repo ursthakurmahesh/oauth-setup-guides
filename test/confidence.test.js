@@ -37,3 +37,30 @@ test('markdown export carries the three-tier badges and keeps the effort estimat
   const mdBare = guideToMarkdown(guide, null);
   assert.doesNotMatch(mdBare, /Verified by Testing/);
 });
+
+test('walkthrough records attach by provider apex, never by display name', () => {
+  delete require.cache[require.resolve('../server.js')];
+  const { renderGuidePage } = require('../server.js');
+  const fakeLinear = JSON.parse(JSON.stringify(guide));
+  fakeLinear.slug = 'gen-linear-x1';
+  fakeLinear.app = 'Linear';
+  fakeLinear.website = 'https://linear.app';
+  fakeLinear.sources = [{ url: 'https://linear.app/docs', title: 'docs' }];
+  const html = renderGuidePage(fakeLinear);
+  assert.match(html, /Verified by Testing/, 'linear walkthrough attaches via apex');
+  const fakeOther = JSON.parse(JSON.stringify(guide));
+  fakeOther.slug = 'gen-other-x1';
+  fakeOther.website = 'https://example.com';
+  fakeOther.console_url = null;
+  fakeOther.sources = [{ url: 'https://example.com/docs', title: 'docs' }];
+  const html2 = renderGuidePage(fakeOther);
+  assert.doesNotMatch(html2, /Verified by Testing/, 'no apex match, no tested badge');
+});
+
+test('probeBrandApex guard rails: URLs, dots and short slugs never probe the network', async () => {
+  const { probeBrandApex } = require('../src/investigate');
+  assert.strictEqual(await probeBrandApex('linear.app'), null);
+  assert.strictEqual(await probeBrandApex('https://linear.app'), null);
+  assert.strictEqual(await probeBrandApex('ab'), null);
+  assert.strictEqual(await probeBrandApex(''), null);
+});

@@ -250,6 +250,101 @@ async function searchBing(terms) {
   return links;
 }
 
+// Candidate TLDs probed for bare brand-name resolution (Gemini Pro repair,
+// 2026-11-03, from live failure evidence: Bing's datacenter result set can
+// omit the provider entirely, so brand -> domain cannot rely on search).
+const BRAND_PROBE_TLDS = ['.com', '.app', '.dev', '.io', '.co'];
+
+// Engine-independent resolution of a bare brand name to the provider apex.
+// Read-only GET probes through the same SSRF guards; identity requires BOTH a
+// brand match in title/H1 AND a credible developer/docs crosslink on the
+// same apex - a brand string alone can select lookalike sites.
+async function probeBrandApex(name) {
+  const raw = String(name || '').trim();
+  if (!raw || raw.includes('.')) return null;
+  const slug = raw.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (slug.length < 3) return null;
+  const candidateApexes = BRAND_PROBE_TLDS.map((tld) => `${slug}${tld}`);
+
+  async function validateCandidate(apex) {
+    const url = `https://${apex}`;
+    if (isBlockedUrl(url)) return null;
+    try {
+      // Deep cap: modern SPA homepages can exceed 1MB before nav links appear.
+      const res = await fetchPage(url, { cap: 400000 });
+      if (!res || !res.html) return null;
+      // Redirects that cross apexes (parked/lookalike domains) invalidate the candidate.
+      const finalApex = apexOf(new URL(res.finalUrl || url).hostname);
+      if (finalApex !== apex) return null;
+      const html = res.html;
+      const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+      const titleText = titleMatch ? stripHtml(titleMatch[1]).toLowerCase() : '';
+      const h1Matches = [...html.matchAll(/<h1[^>]*>([\s\S]*?)<\/h1>/gi)];
+      const h1Texts = h1Matches.map((m) => stripHtml(m[1]).toLowerCase());
+      const brandInTitle = titleText.includes(slug) || titleText.includes(raw.toLowerCase());
+      const brandInH1 = h1Texts.some((h1) => h1.includes(slug) || h1.includes(raw.toLowerCase()));
+      if (!brandInTitle && !brandInH1) return null;
+
+      const linkRe = /href=["']([^"']+)["']/gi;
+      let hasCredibleCrosslink = false;
+      let m;
+      while ((m = linkRe.exec(html)) !== null) {
+        try {
+          const resolved = new URL(m[1], url).href;
+          const host = new URL(resolved).hostname;
+          if (apexOf(host) !== apex) continue;
+          const s = resolved.toLowerCase();
+          if (s.includes('/docs') || s.includes('/developer') || s.includes('/api')
+            || s.includes('docs.') || s.includes('developer.')) {
+            hasCredibleCrosslink = true;
+            break;
+          }
+        } catch { /* bad link */ }
+      }
+      // Fallback: probe well-known docs paths and developer/docs subdomains;
+      // such a page linking back to the apex (or carrying the brand in its
+      // title) is a credible identity crosslink.
+      if (!hasCredibleCrosslink) {
+        const candidates = ['/docs', '/developers', '/developer'].map((p) => `https://${apex}${p}`)
+          .concat([`https://developer.${apex}`, `https://docs.${apex}`]);
+        for (const docsUrl of candidates) {
+          if (isBlockedUrl(docsUrl)) continue;
+          try {
+            const d = await fetchPage(docsUrl, { cap: 200000 });
+            if (!d || !d.html) continue;
+            const dApex = apexOf(new URL(d.finalUrl || docsUrl).hostname);
+            if (dApex !== apex && !docsUrl.includes(`://${dApex.split('.')[0]}.`)) {
+              // subdomain probes (developer.<apex>, docs.<apex>) share the apex label
+              if (!(dApex === apex)) continue;
+            }
+            const dTitle = (d.html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [null, ''])[1];
+            const dTitleText = dTitle ? stripHtml(dTitle).toLowerCase() : '';
+            if (dTitleText.includes(slug)) { hasCredibleCrosslink = true; break; }
+            const backRe = /href=["']([^"']+)["']/gi;
+            let bm;
+            while ((bm = backRe.exec(d.html)) !== null) {
+              try {
+                if (apexOf(new URL(new URL(bm[1], docsUrl).href).hostname) === apex) { hasCredibleCrosslink = true; break; }
+              } catch { /* bad link */ }
+            }
+            if (hasCredibleCrosslink) break;
+          } catch { /* try next path */ }
+        }
+      }
+      if (!hasCredibleCrosslink) return null;
+      return { apex, pageUrl: res.finalUrl || url, html };
+    } catch { return null; }
+  }
+
+  // First validated candidate wins; slower/hung probes are abandoned.
+  const settled = await Promise.any(candidateApexes.map((apex) =>
+    withTimeout(validateCandidate(apex), FETCH_TIMEOUT_MS, url0(apex))
+      .then((r) => (r ? r : Promise.reject(new Error('invalid'))))
+      .catch(() => Promise.reject(new Error('failed'))))).catch(() => null);
+  return settled;
+}
+function url0(apex) { return `https://${apex}`; }
+
 async function searchDeveloperDocs(name, domain, extraTerms = []) {
   // The brief's three research angles, phrased the way an evaluator would:
   // console setup, review/verification requirements, scopes/rate limits.
@@ -262,13 +357,22 @@ async function searchDeveloperDocs(name, domain, extraTerms = []) {
     `${app} OAuth scopes rate limits`,
     ...extraTerms,
   ];
-  const lists = [];
-  for (const terms of termsList) {
-    try { lists.push(await searchDuckDuckGo(terms)); continue; } catch { /* try bing */ }
-    try { lists.push(await searchBing(terms)); } catch { /* engine down; keep what we have */ }
+  // Probe brand apexes concurrently with the engine queries (bare names only).
+  const probePromise = !domain && name ? probeBrandApex(name) : Promise.resolve(null);
+  const searchPromises = termsList.map(async (terms) => {
+    try { return await searchDuckDuckGo(terms); } catch { /* try bing */ }
+    try { return await searchBing(terms); } catch { return []; }
+  });
+  const [probed, ...lists] = await Promise.all([probePromise, ...searchPromises]);
+  const searchResults = mergeResults(lists);
+
+  let firstParty = [];
+  if (probed) {
+    const direct = extractDeveloperLinks(probed.html, probed.pageUrl);
+    firstParty = mergeResults([[{ url: probed.pageUrl, title: `${name} homepage` }], direct]);
   }
-  const merged = mergeResults(lists);
-  if (!merged.length) throw new Error('all search engines unreachable');
+  const merged = mergeResults([firstParty, searchResults]);
+  if (!merged.length) throw new Error('all search engines unreachable and brand probing found nothing');
   return merged;
 }
 
@@ -607,4 +711,4 @@ async function investigate(rawQuery, log, partialOut) {
   return evidence;
 }
 
-module.exports = { THIRD_PARTY_HOSTS, strongPassageCount, MIN_STRONG_PASSAGES, investigate, normalizeQuery, extractEvidence, stripHtml, extractDeveloperLinks, searchDeveloperDocs, isBlockedUrl, isBlockedIp, apexOf, onApex, docScore, mergeResults, inferApexFromResults };
+module.exports = { THIRD_PARTY_HOSTS, strongPassageCount, MIN_STRONG_PASSAGES, investigate, normalizeQuery, extractEvidence, stripHtml, extractDeveloperLinks, searchDeveloperDocs, isBlockedUrl, isBlockedIp, apexOf, onApex, docScore, mergeResults, inferApexFromResults, probeBrandApex };
