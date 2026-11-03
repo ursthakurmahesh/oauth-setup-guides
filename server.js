@@ -10,7 +10,14 @@ const { listGuides, getGuide, searchGuides } = require('./src/store');
 const { startGeneration, getJob, agentStatus } = require('./src/agent');
 const { guideToMarkdown } = require('./src/markdown');
 const { estimateEffort } = require('./src/effort');
+const { buildConfidence, buildStepConfidence } = require('./src/confidence');
 const { pullGenerated } = require('./src/persist');
+
+let WALKTHROUGHS = {};
+try {
+  WALKTHROUGHS = JSON.parse(fs.readFileSync(path.join(__dirname, 'data', 'walkthroughs.json'), 'utf8'));
+} catch { /* walkthrough records are optional */ }
+const walkthroughFor = (slug) => WALKTHROUGHS[slug] || null;
 
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -45,15 +52,21 @@ function guideSummary(g) {
 }
 
 // Server-rendered shareable guide page (no JS needed to read it).
-function renderGuidePage(g) {
+const badgeClass = (status) => `badge badge-${status}`;
+function renderGuidePage(g, walkthrough = null) {
   const badge = g.origin === 'generated' ? '<span class="tag tag-gen">agent-generated</span>' : '<span class="tag">library</span>';
-  const steps = g.steps.map((s) => `
+  const conf = buildConfidence(g, walkthrough);
+  const steps = g.steps.map((s) => {
+    const stepConf = buildStepConfidence(s, g.sources);
+    return `
     <li>
       <strong>${escapeHtml(s.title)}</strong>
-      <span class="badge ${s.verified ? 'ok' : 'warn'}">${s.verified ? 'source page fetched by server' : 'no fetched source page backs this step'}</span>
+      <span class="${badgeClass(stepConf.status)}">${escapeHtml(stepConf.label)}</span>
+      ${s.verified ? '<span class="badge ok">source page fetched and matched</span>' : ''}
       ${s.detail ? `<p>${escapeHtml(s.detail)}</p>` : ''}
       ${s.source ? `<p class="src"><a href="${escapeHtml(s.source)}">source</a></p>` : ''}
-    </li>`).join('');
+    </li>`;
+  }).join('');
   const list = (items) => (items || []).map((n) => `<li>${escapeHtml(n)}</li>`).join('');
   const sources = (g.sources || []).map((s) => `<li><a href="${escapeHtml(s.url)}">${escapeHtml(s.title || s.url)}</a></li>`).join('');
   const css = fs.readFileSync(path.join(PUBLIC_DIR, 'styles.css'), 'utf8');
@@ -65,6 +78,16 @@ function renderGuidePage(g) {
 <h1>OAuth setup guide: ${escapeHtml(g.app)}</h1>
 <p>${badge} <span class="muted">last checked ${escapeHtml(g.last_checked)}</span></p>
 <p class="summary">${escapeHtml(g.summary)}</p>
+<h2>Verification &amp; Evidence Summary</h2>
+<dl class="facts evidence">
+<dt>App registration</dt><dd><span class="${badgeClass(conf.registration.status)}">${conf.registration.label}</span> ${escapeHtml(conf.registration.note)}</dd>
+<dt>Credential issuance</dt><dd><span class="${badgeClass(conf.credentials.status)}">${conf.credentials.label}</span> ${escapeHtml(conf.credentials.note)}</dd>
+<dt>Redirect URI rules</dt><dd><span class="${badgeClass(conf.redirect_uri.status)}">${conf.redirect_uri.label}</span> ${escapeHtml(conf.redirect_uri.note)}</dd>
+<dt>Scopes</dt><dd><span class="${badgeClass(conf.scopes.status)}">${conf.scopes.label}</span> ${escapeHtml(conf.scopes.note)}</dd>
+<dt>Approval / review</dt><dd><span class="${badgeClass(conf.approval.status)}">${conf.approval.label}</span> ${escapeHtml(conf.approval.note)}</dd>
+<dt>Approval wait time</dt><dd><span class="${badgeClass(conf.timeline.status)}">${conf.timeline.label}</span> ${escapeHtml(conf.timeline.note)}</dd>
+${walkthrough && walkthrough.note ? `<dt>Tested in the provider console</dt><dd>${escapeHtml(walkthrough.note)} (tested ${escapeHtml(walkthrough.tested_at)})</dd>` : ''}
+</dl>
 <dl class="facts">
 <dt>Difficulty</dt><dd>${escapeHtml(g.difficulty)}</dd>
 <dt>Expected time / effort</dt><dd>${escapeHtml(estimateEffort(g).text)}; approval wait: ${escapeHtml(g.approval.typical_timeline)}</dd>
@@ -135,7 +158,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && mdMatch) {
       const g = getGuide(mdMatch[1]);
       if (!g) return sendJson(res, 404, { error: 'guide not found' });
-      return send(res, 200, guideToMarkdown(g), MIME['.md']);
+      return send(res, 200, guideToMarkdown(g, walkthroughFor(g.slug)), MIME['.md']);
     }
     const apiMatch = p.match(/^\/api\/guides\/([a-z0-9-]+)$/);
     if (req.method === 'GET' && apiMatch) {
@@ -147,7 +170,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && pageMatch) {
       const g = getGuide(pageMatch[1]);
       if (!g) return send(res, 404, '<h1>guide not found</h1>', 'text/html; charset=utf-8');
-      return send(res, 200, renderGuidePage(g), 'text/html; charset=utf-8');
+      return send(res, 200, renderGuidePage(g, walkthroughFor(g.slug)), 'text/html; charset=utf-8');
     }
     if (req.method === 'POST' && p === '/api/generate') {
       if (rateLimited(`gen:${ip}`, 5, 600000)) {

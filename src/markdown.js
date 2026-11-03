@@ -3,6 +3,7 @@
 // Guide JSON -> shareable markdown. Also used for the .md download/export.
 
 const { estimateEffort } = require('./effort');
+const { buildConfidence, buildStepConfidence } = require('./confidence');
 
 function approvalLabel(a) {
   if (a.required === true) return 'Approval / review required';
@@ -11,7 +12,8 @@ function approvalLabel(a) {
   return 'No approval required to start (per the fetched sources)';
 }
 
-function guideToMarkdown(g) {
+function guideToMarkdown(g, walkthrough = null) {
+  const confidence = buildConfidence(g, walkthrough);
   const lines = [];
   lines.push(`# OAuth setup guide: ${g.app}`);
   lines.push('');
@@ -22,12 +24,14 @@ function guideToMarkdown(g) {
   lines.push(`- **${approvalLabel(g.approval)}**${g.approval.notes ? ` - ${g.approval.notes}` : ''}`);
   if (g.console_url) lines.push(`- **Developer console:** ${g.console_url}`);
   lines.push(`- **Last checked:** ${g.last_checked}`);
+  lines.push(`- **Evidence badges:** registration [${confidence.registration.label}]; credentials [${confidence.credentials.label}]; redirect URI [${confidence.redirect_uri.label}]; scopes [${confidence.scopes.label}]; approval [${confidence.approval.label}]; approval wait time [${confidence.timeline.label}]`);
+  if (walkthrough && walkthrough.note) lines.push(`- **Tested in the provider console:** ${walkthrough.note} (tested ${walkthrough.tested_at})`);
   if (g.coverage) lines.push(`- **Evidence coverage:** ${['create_app','credentials','redirect_uri','scopes','approval','agent_human'].map((k) => `${k.replace(/_/g, ' ')}: ${g.coverage[k] && g.coverage[k].status === 'verified' ? 'quote found' : 'not found'}`).join('; ')}`);
   lines.push('');
   lines.push('## Steps');
   lines.push('');
   g.steps.forEach((s, i) => {
-    const badge = s.verified ? 'source page fetched by server (not console-tested)' : 'no fetched source page backs this step';
+    const badge = buildStepConfidence(s, g.sources).label + (s.verified ? ' - source page fetched and matched' : '');
     lines.push(`${i + 1}. **${s.title}** _(${badge})_`);
     if (s.detail) lines.push(`   ${s.detail}`);
     if (s.source) lines.push(`   Source: ${s.source}`);

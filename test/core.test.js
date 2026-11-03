@@ -75,7 +75,7 @@ test('guideToMarkdown includes verification badges and sources', () => {
   const g = getGuide('github');
   const md = guideToMarkdown(g);
   assert.match(md, /# OAuth setup guide: GitHub/);
-  assert.match(md, /source page fetched by server/);
+  assert.match(md, /source page fetched and matched/);
   assert.match(md, /docs\.github\.com/);
 });
 

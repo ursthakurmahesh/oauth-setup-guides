@@ -1,0 +1,10 @@
+{
+  "github": {
+    "tested_at": "2026-11-03",
+    "tested_scope": [
+      "app_registration",
+      "credential_issuance"
+    ],
+    "note": "An agent created a real OAuth app in the GitHub console and generated a client secret (sudo-mode password re-confirmation required). The OAuth authorization/token exchange was not exercised."
+  }
+}
