@@ -68,6 +68,7 @@ function renderGuidePage(g) {
 <dt>Expected time / effort</dt><dd>${escapeHtml(g.approval.typical_timeline)}</dd>
 <dt>Approval</dt><dd>${g.approval.required === true ? 'required' : g.approval.required === 'conditional' ? 'required only in some cases' : g.approval.required === 'unknown' ? 'unknown - not stated in the fetched sources' : 'not required to start (per the fetched sources)'}${g.approval.notes ? ` - ${escapeHtml(g.approval.notes)}` : ''}</dd>
 ${g.console_url ? `<dt>Developer console</dt><dd><a href="${escapeHtml(g.console_url)}">${escapeHtml(g.console_url)}</a></dd>` : ''}
+${g.coverage ? `<dt>Evidence coverage</dt><dd>${['create_app','credentials','redirect_uri','scopes','approval','agent_human'].map((k) => `${k.replace(/_/g, ' ')}: ${g.coverage[k] && g.coverage[k].status === 'verified' ? 'quote found in a fetched page' : 'not found in fetched pages'}`).map(escapeHtml).join('<br>')}</dd>` : ''}
 ${g.testing ? `<dt>How this was checked</dt><dd>${escapeHtml(g.testing.note)}</dd>` : ''}
 </dl>
 <h2>Steps</h2><ol class="steps">${steps}</ol>

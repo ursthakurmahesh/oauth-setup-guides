@@ -137,6 +137,32 @@ async function runJob(job) {
     if (!candidate.sources.length) {
       candidate.sources = evidence.pages.map((p) => ({ title: p.title || p.url, url: p.url }));
     }
+    // Slot-coverage gate: each slot must be backed by a VERBATIM quote that
+    // really occurs in a fetched page. The server checks the quote itself.
+    const norm = (t) => String(t || '').toLowerCase().replace(/\s+/g, ' ').replace(/[^a-z0-9 ]/g, '').trim();
+    const pageBlobs = evidence.pages.map((p) => ({ url: p.url, text: norm(`${p.title || ''} ${(p.headings || []).join(' ')} ${(p.sentences || []).join(' ')}`) }));
+    const SLOTS = ['create_app', 'credentials', 'redirect_uri', 'scopes', 'approval', 'agent_human'];
+    const coverage = {};
+    for (const slot of SLOTS) {
+      const c = (guide.coverage || {})[slot] || {};
+      const q = norm(c.quote);
+      const blob = pageBlobs.find((b) => b.url === c.url) || null;
+      const ok = c.status === 'covered' && q.length >= 25 && ((blob && blob.text.includes(q)) || pageBlobs.some((b) => b.text.includes(q)));
+      coverage[slot] = ok ? { status: 'verified', url: (blob && blob.text.includes(q)) ? blob.url : (pageBlobs.find((b) => b.text.includes(q)) || {}).url, quote: String(c.quote).slice(0, 240) } : { status: 'not_found' };
+    }
+    candidate.coverage = coverage;
+    const REQUIRED_SLOTS = ['create_app', 'credentials', 'redirect_uri'];
+    const missingSlots = REQUIRED_SLOTS.filter((sl) => coverage[sl].status !== 'verified');
+    if (missingSlots.length) {
+      job.status = 'research_only';
+      job.research = {
+        note: `The fetched documentation did not verifiably cover: ${missingSlots.join(', ').replace(/_/g, ' ')}. A setup guide without those would mislead, so none was published. This is an incomplete investigation; the pages reviewed are listed below.`,
+        search_results: [],
+        pages: evidence.pages.map((p) => ({ url: p.url, title: p.title, headings: p.headings })),
+      };
+      say(`Coverage gate: no verbatim supporting quote for ${missingSlots.join(', ')}; not publishing`);
+      return;
+    }
     const errors = validateGuide(candidate);
     if (errors.length) {
       job.status = 'error';

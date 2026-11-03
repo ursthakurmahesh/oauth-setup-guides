@@ -20,6 +20,7 @@ function guideToMarkdown(g) {
   lines.push(`- **${approvalLabel(g.approval)}**${g.approval.notes ? ` - ${g.approval.notes}` : ''}`);
   if (g.console_url) lines.push(`- **Developer console:** ${g.console_url}`);
   lines.push(`- **Last checked:** ${g.last_checked}`);
+  if (g.coverage) lines.push(`- **Evidence coverage:** ${['create_app','credentials','redirect_uri','scopes','approval','agent_human'].map((k) => `${k.replace(/_/g, ' ')}: ${g.coverage[k] && g.coverage[k].status === 'verified' ? 'quote found' : 'not found'}`).join('; ')}`);
   lines.push('');
   lines.push('## Steps');
   lines.push('');

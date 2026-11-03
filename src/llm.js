@@ -33,8 +33,12 @@ Given evidence extracted from a provider's official pages, produce ONE JSON obje
  "nuances": [string],
  "agent_can_do": [string],
  "human_must_do": [string],
- "sources": [{"title": string, "url": string}]
+ "sources": [{"title": string, "url": string}],
+ "coverage": {"create_app": SLOT, "credentials": SLOT, "redirect_uri": SLOT, "scopes": SLOT, "approval": SLOT, "agent_human": SLOT}
 }
+SLOT = {"status": "covered"|"not_found", "quote": string (a VERBATIM passage copied from one fetched page that supports this slot; "" if not_found), "url": string (that page)}
+Slots: create_app = how a developer creates/registers the OAuth app or integration; credentials = where client id/secret come from; redirect_uri = how the redirect/callback URL is set; scopes = how scopes/permissions are chosen; approval = whether review/approval is required and how long it takes; agent_human = a documented step that needs a human (login, consent, review submission).
+Use status "not_found" honestly when no fetched passage supports a slot. Never paraphrase a quote.
 Rules: use ONLY facts present in the evidence. If the evidence does not say how long approval takes, say "not stated in fetched sources" instead of guessing. Every step needs a source url copied from the evidence. Mark anything uncertain in nuances. Output raw JSON only, no markdown fences.`;
 
 function buildUserPrompt(evidence) {
