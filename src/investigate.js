@@ -109,14 +109,14 @@ async function readCapped(res, cap) {
 }
 
 // Manual redirect handling: every hop is re-checked against the SSRF guard.
-async function fetchPage(url) {
+async function fetchPage(url, opts = {}) {
   if (isBlockedUrl(url)) throw new Error(`blocked by SSRF guard: ${url}`);
   let current = url;
   for (let hop = 0; hop < 5; hop++) {
     const host = new URL(current).hostname;
     if (await resolvesPrivate(host)) throw new Error(`blocked: ${host} resolves to a private address`);
     const res = await fetch(current, {
-      headers: { 'user-agent': USER_AGENT, accept: 'text/html,application/xhtml+xml' },
+      headers: { 'user-agent': USER_AGENT, accept: opts.anyText ? 'text/plain,application/xml,text/xml,*/*' : 'text/html,application/xhtml+xml' },
       redirect: 'manual',
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
@@ -130,8 +130,9 @@ async function fetchPage(url) {
     }
     if (!res.ok) throw new Error(`HTTP ${res.status} for ${current}`);
     const type = res.headers.get('content-type') || '';
-    if (!type.includes('html')) throw new Error(`not html (${type}) for ${current}`);
-    const text = await readCapped(res, MAX_BODY_CHARS);
+    if (!opts.anyText && !type.includes('html')) throw new Error(`not html (${type}) for ${current}`);
+    if (opts.anyText && /^(image|video|audio|application\/(octet|pdf|zip))/.test(type)) throw new Error(`binary (${type}) for ${current}`);
+    const text = await readCapped(res, opts.cap || MAX_BODY_CHARS);
     return { html: text, finalUrl: current };
   }
   throw new Error(`too many redirects from ${url}`);
@@ -307,6 +308,16 @@ function docScore(url, query) {
   return score;
 }
 
+// Strong evidence = sentences about the actual OAuth app mechanics, not just
+// any page that mentions "api" or "developer".
+const STRONG_RE = /oauth|client[ _-]?(id|secret)|redirect[ _-]?(uri|url)|authori[sz]ation (code|url|endpoint|server)|access token|callback url|register (an |your )?(app|application)|create (an |your |a new )?(oauth )?(app|application|integration)/i;
+const MIN_STRONG_PASSAGES = 6;
+const OAUTH_PATHS = ['/docs/oauth', '/oauth', '/docs/authentication', '/docs/authorization', '/docs/api/authentication',
+  '/docs/oauth2', '/docs/oauth-2-0', '/docs/auth', '/developers/oauth', '/developers/docs/oauth', '/docs/guides/authentication',
+  '/docs/api-reference/authentication', '/docs/rest/authentication', '/api/oauth', '/docs/getting-started/authentication'];
+function strongSentences(sentences) { return (sentences || []).filter((x) => STRONG_RE.test(x)); }
+function strongPassageCount(pages) { return pages.reduce((n, pg) => n + strongSentences(pg.sentences).length, 0); }
+
 async function investigate(rawQuery, log) {
   const say = log || (() => {});
   const query = normalizeQuery(rawQuery);
@@ -366,7 +377,82 @@ async function investigate(rawQuery, log) {
       say(`Skipped ${url}: ${err.message}`);
     }
   }
+
+  // Second pass when first-party evidence is still thin: probe well-known
+  // OAuth/auth doc paths on first-party hosts, then try a site-scoped search.
+  // Everything stays on the queried provider's own domain; nothing is invented.
+  if (apex && strongPassageCount(evidence.pages) < MIN_STRONG_PASSAGES) {
+    say('First-party evidence is thin; probing well-known OAuth documentation paths');
+    const hosts = new Set();
+    for (const pg of evidence.pages) { const h = hostOf(pg.url); if (h && onApex(pg.url, apex)) hosts.add(h); }
+    for (const u of candidateUrls(query)) { const h = hostOf(u); if (h) hosts.add(h); }
+    const seen = new Set(evidence.pages.map((pg) => pg.url));
+    const probes = [];
+    for (const h of hosts) for (const path of OAUTH_PATHS) probes.push(`https://${h}${path}`);
+    const found = [];
+    // Provider-published indexes (llms.txt / sitemap.xml) list real doc URLs.
+    const indexUrls = [];
+    for (const h of hosts) {
+      indexUrls.push(`https://${h}/llms.txt`, `https://${h}/sitemap.xml`);
+      const seg = (() => { try { return new URL(evidence.pages.find((pg) => hostOf(pg.url) === h)?.url || `https://${h}/`).pathname.split('/')[1]; } catch { return ''; } })();
+      if (seg) indexUrls.push(`https://${h}/${seg}/llms.txt`);
+    }
+    const idxResults = await Promise.allSettled([...new Set(indexUrls)].slice(0, 16).map((u) => fetchPage(u, { anyText: true, cap: 2000000 })));
+    const cands = new Map();
+    for (const r of idxResults) {
+      if (r.status !== 'fulfilled') continue;
+      for (const line of r.value.html.split(/\n|<loc>/)) {
+       const lineHit = /oauth|sign in with|authori[sz]/i.test(line);
+       for (const m of line.matchAll(/https?:\/\/[^\s<>"')\]]+/g)) {
+        const u = m[0].replace(/[.,;]+$/, '');
+        if (!onApex(u, apex) || !(lineHit || /oauth|authenticat|authori[sz]|sign-in-with|login-with/i.test(u))) continue;
+        if (/\.(png|jpe?g|svg|gif|webp|xml|json)$/i.test(u) || /\/(blog|changelog|pricing|careers)\b/.test(u)) continue;
+        const score = (/oauth/i.test(u) ? 3 : 0) + (/authori[sz]|sign-in-with|login-with/i.test(u) ? 2 : 0) + (/authenticat/i.test(u) ? 1 : 0) - u.length / 200;
+        if (!cands.has(u) || cands.get(u) < score + (lineHit ? 2 : 0)) cands.set(u, score + (lineHit ? 2 : 0));
+       }
+      }
+    }
+    const idxTargets = [...cands.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map((e) => e[0]);
+    if (idxTargets.length) say(`Provider doc index lists ${cands.size} auth-related pages; fetching the top ${idxTargets.length}`);
+    const idxSet = new Set(idxTargets);
+    for (const u of idxTargets) probes.unshift(u);
+    for (const h of hosts) probes.push(`https://${h}/docs/sign-in-with-${String(query.name).toLowerCase()}`);
+    const results = await Promise.allSettled(probes.slice(0, 50).map(async (url) => {
+      const { html, finalUrl } = await fetchPage(url, idxSet.has(url) ? { anyText: true } : {});
+      return { url, html, finalUrl };
+    }));
+    for (const r of results) {
+      if (r.status !== 'fulfilled') continue;
+      const { url, html, finalUrl } = r.value;
+      if (seen.has(finalUrl) || !onApex(finalUrl, apex)) continue;
+      const facts = extractEvidence(html);
+      if (strongSentences(facts.sentences).length < 3) continue;
+      seen.add(finalUrl);
+      found.push({ url: finalUrl, requestedUrl: url, ...facts });
+    }
+    found.sort((a, b) => strongSentences(b.sentences).length - strongSentences(a.sentences).length);
+    for (const f of found.slice(0, 3)) {
+      evidence.pages.push(f);
+      say(`Found OAuth documentation at ${f.url} (${strongSentences(f.sentences).length} relevant passages)`);
+    }
+    if (strongPassageCount(evidence.pages) < MIN_STRONG_PASSAGES) {
+      try {
+        const hits = await searchBing(`site:${apex} oauth register application client id redirect uri`);
+        const fp = hits.filter((h) => onApex(h.url, apex) && !seen.has(h.url)).slice(0, 3);
+        for (const h of fp) {
+          try {
+            say(`Fetching search result ${h.url}`);
+            const { html, finalUrl } = await fetchPage(h.url);
+            const facts = extractEvidence(html);
+            seen.add(finalUrl);
+            evidence.pages.push({ url: finalUrl, requestedUrl: h.url, ...facts });
+            say(`Extracted ${strongSentences(facts.sentences).length} relevant passages from ${h.url}`);
+          } catch (err) { say(`Skipped ${h.url}: ${err.message}`); }
+        }
+      } catch (err) { say(`Site-scoped search unavailable (${err.message})`); }
+    }
+  }
   return evidence;
 }
 
-module.exports = { investigate, normalizeQuery, extractEvidence, stripHtml, extractDeveloperLinks, searchDeveloperDocs, isBlockedUrl, isBlockedIp, apexOf, onApex, docScore };
+module.exports = { strongPassageCount, MIN_STRONG_PASSAGES, investigate, normalizeQuery, extractEvidence, stripHtml, extractDeveloperLinks, searchDeveloperDocs, isBlockedUrl, isBlockedIp, apexOf, onApex, docScore };

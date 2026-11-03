@@ -98,3 +98,9 @@ test('generated approval badge never claims "no approval" without source support
   assert.match(html, /unknown - not stated in the fetched sources/);
   assert.doesNotMatch(html, /not required to start[^<]*unknown/);
 });
+
+test('strongPassageCount counts only OAuth-mechanics sentences', () => {
+  const { strongPassageCount } = require('../src/investigate');
+  const pages = [{ sentences: ['Create an OAuth app and copy the client secret.', 'Our pricing is simple and fair for teams of all sizes.'] }];
+  assert.equal(strongPassageCount(pages), 1);
+});

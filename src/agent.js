@@ -5,7 +5,7 @@
 // shareable guide. Jobs run in the background; the UI polls for progress.
 
 const crypto = require('crypto');
-const { investigate } = require('./investigate');
+const { investigate, strongPassageCount, MIN_STRONG_PASSAGES } = require('./investigate');
 const { synthesize, detectBackend } = require('./llm');
 const { validateGuide } = require('./guideSchema');
 const { saveGenerated, getGuide } = require('./store');
@@ -55,6 +55,18 @@ async function runJob(job) {
         pages: [],
       };
       say('No pages fetched; returning search candidates instead of synthesizing from memory');
+      return;
+    }
+    const strong = strongPassageCount(evidence.pages);
+    if (strong < MIN_STRONG_PASSAGES) {
+      // Evidence gate: general product pages are not OAuth documentation.
+      job.status = 'research_only';
+      job.research = {
+        note: `Not enough OAuth documentation was found for "${job.query}" (${strong} relevant passages across ${evidence.pages.length} first-party pages; at least ${MIN_STRONG_PASSAGES} are required), so no guide was generated. This is an incomplete investigation, not a finished guide. Try the provider's developer-docs URL directly.`,
+        search_results: evidence.search_results,
+        pages: evidence.pages.map((p) => ({ url: p.url, title: p.title, headings: p.headings })),
+      };
+      say(`Evidence gate: only ${strong} relevant OAuth passages found (need ${MIN_STRONG_PASSAGES}); not generating a guide from thin sources`);
       return;
     }
     say(`Synthesizing guide with ${backend.label}`);
@@ -124,6 +136,19 @@ async function runJob(job) {
       job.status = 'error';
       job.error = `Model output failed guide validation: ${errors.join('; ')}`;
       say(job.error);
+      return;
+    }
+    // Output gate: a guide with almost no steps or empty agent/human sections
+    // is a non-answer; surface it as an incomplete investigation instead.
+    const verifiedSteps = candidate.steps.filter((st) => st.verified).length;
+    if (candidate.steps.length < 3 || verifiedSteps < 2 || !candidate.agent_can_do.length || !candidate.human_must_do.length) {
+      job.status = 'research_only';
+      job.research = {
+        note: `The generated draft was too thin to publish (${candidate.steps.length} steps, ${verifiedSteps} docs-backed, ${candidate.agent_can_do.length} agent actions, ${candidate.human_must_do.length} human actions). No guide was saved. This is an incomplete investigation; the sources reviewed are listed below.`,
+        search_results: [],
+        pages: evidence.pages.map((p) => ({ url: p.url, title: p.title, headings: p.headings })),
+      };
+      say('Quality gate: draft too thin (needs 3+ steps, 2+ docs-backed, and non-empty agent/human sections); not publishing');
       return;
     }
     saveGenerated(candidate);
