@@ -1,49 +1,4 @@
 {
-  "dfa50771529b": {
-    "id": "dfa50771529b",
-    "query": "x.com",
-    "status": "research_only",
-    "slug": null,
-    "error": null,
-    "created_at": "2026-11-03T17:45:09.729Z",
-    "finished_at": "2026-11-03T17:48:53.093Z"
-  },
-  "1c20dd7aa170": {
-    "id": "1c20dd7aa170",
-    "query": "Airtable",
-    "status": "research_only",
-    "slug": null,
-    "error": null,
-    "created_at": "2026-11-03T17:47:28.765Z",
-    "finished_at": "2026-11-03T17:50:35.634Z"
-  },
-  "a59f9f7f066f": {
-    "id": "a59f9f7f066f",
-    "query": "x.com",
-    "status": "research_only",
-    "slug": null,
-    "error": null,
-    "created_at": "2026-11-03T17:49:03.687Z",
-    "finished_at": "2026-11-03T17:52:08.029Z"
-  },
-  "7aa4ff9b22a9": {
-    "id": "7aa4ff9b22a9",
-    "query": "figma",
-    "status": "interrupted",
-    "slug": null,
-    "error": "The service restarted while this job was running; its result was lost. Please start a new generation.",
-    "created_at": "2026-11-03T17:52:15.394Z",
-    "finished_at": null
-  },
-  "0f4363a7a371": {
-    "id": "0f4363a7a371",
-    "query": "figma.com",
-    "status": "research_only",
-    "slug": null,
-    "error": null,
-    "created_at": "2026-11-03T17:58:02.278Z",
-    "finished_at": "2026-11-03T18:03:17.191Z"
-  },
   "82cee8284498": {
     "id": "82cee8284498",
     "query": "pinterest",
@@ -106,5 +61,14 @@
     "error": null,
     "created_at": "2026-11-03T18:40:04.137Z",
     "finished_at": "2026-11-03T18:43:04.606Z"
+  },
+  "72a1a35d3977": {
+    "id": "72a1a35d3977",
+    "query": "x.com",
+    "status": "running",
+    "slug": null,
+    "error": null,
+    "created_at": "2026-11-03T19:01:18.668Z",
+    "finished_at": null
   }
 }
