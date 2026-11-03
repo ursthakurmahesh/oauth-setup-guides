@@ -163,7 +163,7 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, job);
     }
     if (req.method === 'GET' && p === '/api/status') {
-      return sendJson(res, 200, { ok: true, agent: agentStatus(), guides: listGuides().length });
+      return sendJson(res, 200, { ok: true, revision: process.env.RENDER_GIT_COMMIT || 'local', agent: agentStatus(), guides: listGuides().length });
     }
     if (req.method === 'GET' && (p === '/' || p.startsWith('/static/') || p === '/app.js' || p === '/styles.css')) {
       return serveStatic(res, p === '/' ? '/' : p.replace(/^\/static\//, '/'));

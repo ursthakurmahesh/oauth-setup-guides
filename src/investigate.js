@@ -294,6 +294,18 @@ function hostOf(url) {
 // provider's own domain. Curated by hand: only hosts the provider itself
 // operates for its developer documentation. This is not an open door for
 // third-party evidence - any host not listed here still must be on-apex.
+// Official documentation ENTRY POINTS for providers whose docs are not
+// discoverable from their own apex (seed URLs only - the content is still
+// fetched, extracted and gated like any other evidence).
+const OFFICIAL_DOC_SEEDS = {
+  'linkedin.com': [
+    'https://learn.microsoft.com/en-us/linkedin/shared/authentication/authentication',
+    'https://learn.microsoft.com/en-us/linkedin/shared/authentication/getting-access',
+    'https://learn.microsoft.com/en-us/linkedin/shared/authentication/authorization-code-flow',
+    'https://learn.microsoft.com/en-us/linkedin/shared/authentication/client-credentials-flow',
+  ],
+};
+
 const OFFICIAL_DOC_HOSTS = {
   'linkedin.com': ['learn.microsoft.com'],
   'shopify.com': ['shopify.dev'],
@@ -408,6 +420,9 @@ async function investigate(rawQuery, log, partialOut) {
     const seen = new Set(evidence.pages.map((pg) => pg.url));
     const probes = [];
     for (const h of hosts) for (const path of OAUTH_PATHS) probes.push(`https://${h}${path}`);
+    // Curated official entry points (e.g. LinkedIn's auth docs on Microsoft
+    // Learn) are probed first; their content is still extracted and gated.
+    if (OFFICIAL_DOC_SEEDS[apex]) probes.unshift(...OFFICIAL_DOC_SEEDS[apex]);
     const found = [];
     // Provider-published indexes (llms.txt / sitemap.xml) list real doc URLs.
     const indexUrls = [];
