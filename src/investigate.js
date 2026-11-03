@@ -42,33 +42,99 @@ function stripHtml(html) {
     .replace(/[ \t]+/g, ' ');
 }
 
-// SSRF guard: only public http(s) pages may be fetched. Blocks loopback,
-// private, link-local and metadata-style IP literals plus non-http schemes.
+// SSRF guard: only public http(s) pages may be fetched.
+const dns = require('dns').promises;
+
+function ipv4Private(a, b) {
+  return a === 0 || a === 10 || a === 127 || (a === 172 && b >= 16 && b <= 31)
+    || (a === 192 && b === 168) || (a === 169 && b === 254)
+    || (a === 100 && b >= 64 && b <= 127) || (a === 198 && (b === 18 || b === 19))
+    || (a === 192 && b === 0) || a >= 224;
+}
+
+function isBlockedIp(ip) {
+  const v4 = ip.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (v4) return ipv4Private(Number(v4[1]), Number(v4[2]));
+  const v6 = ip.toLowerCase();
+  if (v6 === '::1' || v6 === '::' || v6.startsWith('fe80') || v6.startsWith('fc') || v6.startsWith('fd')) return true;
+  const mapped = v6.match(/::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/);
+  if (mapped) return isBlockedIp(mapped[1]);
+  return false;
+}
+
+function isBlockedHost(hostname) {
+  const host = hostname.toLowerCase().replace(/\.$/, '');
+  if (!host.includes('.') || host === 'localhost' || host.endsWith('.localhost')
+    || host.endsWith('.internal') || host.endsWith('.local') || host.endsWith('.lan')) return true;
+  return isBlockedIp(host);
+}
+
 function isBlockedUrl(url) {
   let u;
   try { u = new URL(url); } catch { return true; }
   if (!/^https?:$/.test(u.protocol)) return true;
-  const host = u.hostname.toLowerCase();
-  if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.internal') || host === '[::1]') return true;
-  const v4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
-  if (v4) {
-    const [a, b] = [Number(v4[1]), Number(v4[2])];
-    if (a === 10 || a === 127 || a === 0 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254)) return true;
-  }
-  return false;
+  return isBlockedHost(u.hostname);
 }
 
+// Resolve DNS and refuse if every route leads to a private address.
+async function resolvesPrivate(hostname) {
+  if (isBlockedIp(hostname)) return true; // literal IP already checked
+  try {
+    const addrs = await dns.lookup(hostname, { all: true });
+    return addrs.some((a) => isBlockedIp(a.address));
+  } catch {
+    return false; // resolution failure is handled by the fetch itself
+  }
+}
+
+const MAX_BODY_CHARS = 100000; // also bounds the regex work in extraction
+
+async function readCapped(res, cap) {
+  if (!res.body) return (await res.text()).slice(0, cap);
+  const reader = res.body.getReader();
+  const chunks = [];
+  let size = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      chunks.push(value);
+      if (size >= cap) break;
+    }
+  } finally {
+    try { await reader.cancel(); } catch { /* socket closes */ }
+  }
+  return Buffer.concat(chunks.map((c) => Buffer.from(c))).toString('utf8').slice(0, cap);
+}
+
+// Manual redirect handling: every hop is re-checked against the SSRF guard.
 async function fetchPage(url) {
   if (isBlockedUrl(url)) throw new Error(`blocked by SSRF guard: ${url}`);
-  const res = await withTimeout(fetch(url, {
-    headers: { 'user-agent': USER_AGENT, accept: 'text/html,application/xhtml+xml' },
-    redirect: 'follow',
-  }), FETCH_TIMEOUT_MS, url);
-  if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
-  const type = res.headers.get('content-type') || '';
-  if (!type.includes('html')) throw new Error(`not html (${type}) for ${url}`);
-  const text = await res.text();
-  return text.slice(0, MAX_PAGE_BYTES);
+  let current = url;
+  for (let hop = 0; hop < 5; hop++) {
+    const host = new URL(current).hostname;
+    if (await resolvesPrivate(host)) throw new Error(`blocked: ${host} resolves to a private address`);
+    const res = await fetch(current, {
+      headers: { 'user-agent': USER_AGENT, accept: 'text/html,application/xhtml+xml' },
+      redirect: 'manual',
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+    if ([301, 302, 303, 307, 308].includes(res.status)) {
+      const loc = res.headers.get('location');
+      if (!loc) throw new Error(`redirect without location from ${current}`);
+      const next = new URL(loc, current).toString();
+      if (isBlockedUrl(next)) throw new Error(`blocked redirect to ${next}`);
+      current = next;
+      continue;
+    }
+    if (!res.ok) throw new Error(`HTTP ${res.status} for ${current}`);
+    const type = res.headers.get('content-type') || '';
+    if (!type.includes('html')) throw new Error(`not html (${type}) for ${current}`);
+    const text = await readCapped(res, MAX_BODY_CHARS);
+    return { html: text, finalUrl: current };
+  }
+  throw new Error(`too many redirects from ${url}`);
 }
 
 // Find developer-documentation links for an app. Engine chain with honest
@@ -96,12 +162,18 @@ function unwrapBing(href) {
 }
 
 function skipLink(href) {
-  return /duckduckgo|youtube|facebook|wikipedia\.org|bing\.com|microsoft\.com\/search|merriam|dictionary|cambridge/.test(href);
+  let host;
+  try { host = new URL(href).hostname.toLowerCase(); } catch { return true; }
+  const blockedHosts = ['duckduckgo.com', 'html.duckduckgo.com', 'youtube.com', 'www.youtube.com',
+    'facebook.com', 'www.facebook.com', 'bing.com', 'www.bing.com',
+    'merriam-webster.com', 'www.merriam-webster.com', 'dictionary.cambridge.org'];
+  if (blockedHosts.includes(host)) return true;
+  return host.endsWith('.wikipedia.org');
 }
 
 async function searchDuckDuckGo(terms) {
   const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(terms)}`;
-  const html = await fetchPage(url);
+  const { html } = await fetchPage(url);
   const links = [];
   const re = /class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g;
   let m;
@@ -187,7 +259,10 @@ function candidateUrls(query) {
   const urls = [];
   if (query.domain) {
     const d = query.domain;
-    const apex = d.split('.').slice(-2).join('.');
+    const parts = d.split('.');
+    const twoLevel = new Set(['co.uk', 'org.uk', 'com.au', 'co.in', 'co.jp', 'com.br', 'co.nz', 'com.sg']);
+    const last2 = parts.slice(-2).join('.');
+    const apex = twoLevel.has(last2) && parts.length >= 3 ? parts.slice(-3).join('.') : last2;
     urls.push(
       `https://developer.${apex}`,
       `https://developers.${apex}`,
@@ -220,9 +295,9 @@ async function investigate(rawQuery, log) {
   for (const url of finalTargets) {
     try {
       say(`Fetching ${url}`);
-      const html = await fetchPage(url);
+      const { html, finalUrl } = await fetchPage(url);
       const facts = extractEvidence(html);
-      evidence.pages.push({ url, ...facts });
+      evidence.pages.push({ url: finalUrl, requestedUrl: url, ...facts });
       say(`Extracted ${facts.sentences.length} OAuth-related passages from ${url}`);
       for (const link of extractDeveloperLinks(html, url).slice(0, 3)) {
         if (!targets.includes(link.url) && !extraTargets.includes(link.url)) {
@@ -236,9 +311,9 @@ async function investigate(rawQuery, log) {
   for (const url of extraTargets.slice(0, 2)) {
     try {
       say(`Following discovered developer link ${url}`);
-      const html = await fetchPage(url);
+      const { html, finalUrl } = await fetchPage(url);
       const facts = extractEvidence(html);
-      evidence.pages.push({ url, ...facts });
+      evidence.pages.push({ url: finalUrl, requestedUrl: url, ...facts });
       say(`Extracted ${facts.sentences.length} OAuth-related passages from ${url}`);
     } catch (err) {
       say(`Skipped ${url}: ${err.message}`);
@@ -247,4 +322,4 @@ async function investigate(rawQuery, log) {
   return evidence;
 }
 
-module.exports = { investigate, normalizeQuery, extractEvidence, stripHtml, extractDeveloperLinks, searchDeveloperDocs, isBlockedUrl };
+module.exports = { investigate, normalizeQuery, extractEvidence, stripHtml, extractDeveloperLinks, searchDeveloperDocs, isBlockedUrl, isBlockedIp };

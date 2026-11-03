@@ -13,7 +13,7 @@ function detectBackend(env = process.env) {
     const model = env.GEMINI_MODEL || 'gemini-3.8-flash';
     return { kind: 'gemini', model, label: `Google AI Studio free tier (${model})` };
   }
-  if (env.OLLAMA_MODEL || env.OLLAMA_HOST || env.USE_OLLAMA) {
+  if (env.OLLAMA_MODEL || env.OLLAMA_HOST || ['1', 'true', 'yes'].includes(String(env.USE_OLLAMA || '').toLowerCase())) {
     return { kind: 'ollama', model: env.OLLAMA_MODEL || 'llama3.1:8b', host: env.OLLAMA_HOST || 'http://localhost:11434', label: `local Ollama (${env.OLLAMA_MODEL || 'llama3.1:8b'})` };
   }
   if (env.OPENAI_API_KEY) {
@@ -72,7 +72,8 @@ async function callGemini(prompt, backend, env) {
         return await callGeminiModel(prompt, model, env);
       } catch (err) {
         lastErr = err;
-        if (!/HTTP (429|503)/.test(err.message)) throw err;
+        const retriable = /HTTP (404|429|503)/.test(err.message) || /timed out|aborted|TimeoutError/i.test(err.message) || err.name === 'TimeoutError' || err.name === 'AbortError';
+        if (!retriable) throw err;
         await sleep(3000 * (attempt + 1));
       }
     }
@@ -81,10 +82,11 @@ async function callGemini(prompt, backend, env) {
 }
 
 async function callGeminiModel(prompt, model, env) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    signal: AbortSignal.timeout(90000),
+    headers: { 'content-type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
     body: JSON.stringify({
       system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
@@ -99,7 +101,8 @@ async function callGeminiModel(prompt, model, env) {
 }
 
 async function callOllama(prompt, backend) {
-  const res = await fetch(`${backend.host}/api/chat`, {
+  const res = await fetch(`${backend.host.replace(/\/+$/, '')}/api/chat`, {
+    signal: AbortSignal.timeout(120000),
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
@@ -119,7 +122,8 @@ async function callOllama(prompt, backend) {
 }
 
 async function callOpenAI(prompt, backend, env) {
-  const res = await fetch(`${backend.base}/chat/completions`, {
+  const res = await fetch(`${backend.base.replace(/\/+$/, '')}/chat/completions`, {
+    signal: AbortSignal.timeout(90000),
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: `Bearer ${env.OPENAI_API_KEY}` },
     body: JSON.stringify({

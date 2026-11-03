@@ -34,12 +34,20 @@ function validateGuide(guide) {
       errors.push('approval.typical_timeline must be a string');
     }
   }
+  for (const urlField of ['console_url', 'website']) {
+    if (guide[urlField] != null && !(typeof guide[urlField] === 'string' && /^https?:\/\//.test(guide[urlField]))) {
+      errors.push(`${urlField} must be an http(s) url when present`);
+    }
+  }
   if (!Array.isArray(guide.steps) || guide.steps.length === 0) {
     errors.push('steps must be a non-empty array');
   } else {
     guide.steps.forEach((step, i) => {
       if (!step || typeof step.title !== 'string' || step.title.trim() === '') {
         errors.push(`steps[${i}] missing title`);
+      }
+      if (step && step.source != null && !/^https?:\/\//.test(String(step.source))) {
+        errors.push(`steps[${i}].source must be an http(s) url`);
       }
       if (step && typeof step.verified !== 'boolean') {
         errors.push(`steps[${i}].verified must be a boolean (true = checked against a live source)`);
