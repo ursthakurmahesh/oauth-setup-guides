@@ -9,8 +9,19 @@ const { investigate, strongPassageCount, MIN_STRONG_PASSAGES } = require('./inve
 const { synthesize, detectBackend } = require('./llm');
 const { validateGuide } = require('./guideSchema');
 const { saveGenerated, getGuide } = require('./store');
+const { pushGenerated } = require('./persist');
 
 const jobs = new Map();
+
+// Free-tier model capacity spikes (HTTP 503) can last minutes. A live demo
+// must not die to them: after the model's own fast retry chain exhausts, the
+// job keeps its investigation and retries synthesis from the same evidence.
+const SYNTH_RETRY_DELAY_MS = 75000;
+const MAX_SYNTH_RETRIES = 8;
+
+function isRetriableModelError(err) {
+  return /HTTP (404|429|5\d\d)/.test(err.message) || /high demand|UNAVAILABLE|timed out|TimeoutError|aborted/i.test(err.message);
+}
 
 function slugify(text) {
   return String(text).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'app';
@@ -39,7 +50,7 @@ async function runJob(job) {
     clearTimeout(timer);
     job.evidence_pages = evidence.pages.map((p) => p.url);
 
-    const { backend, guide } = await synthesize(evidence);
+    const backend = detectBackend();
     if (!backend) {
       // No model backend configured: return the real investigation, honestly
       // labeled. This is not presented as a finished guide.
@@ -85,7 +96,48 @@ async function runJob(job) {
       say(`Evidence gate: only ${strong} relevant OAuth passages found (need ${MIN_STRONG_PASSAGES}); not generating a guide from thin sources`);
       return;
     }
-    say(`Synthesizing guide with ${backend.label}`);
+    await synthesizeAndPublish(job, evidence, say);
+  } catch (err) {
+    if (job.evidence_pages && job.evidence_pages.length) {
+      job.status = 'research_only';
+      job.research = { note: `Generation failed (${err.message.slice(0, 200)}); the investigation results are preserved below.`, search_results: [], pages: [] };
+      say(`Failed, evidence preserved: ${err.message}`);
+    } else {
+      job.status = 'error';
+      job.error = err.message;
+      say(`Failed: ${err.message}`);
+    }
+  }
+}
+
+// Synthesize from preserved evidence and publish. On a temporary model error
+// the job stays "running" and retries from the same evidence; only after
+// MAX_SYNTH_RETRIES failures does it end as an honest research_only result.
+async function synthesizeAndPublish(job, evidence, say) {
+  let backend, guide;
+  try {
+    say(`Synthesizing guide with ${detectBackend().label}`);
+    const r = await synthesize(evidence);
+    backend = r.backend;
+    guide = r.guide;
+  } catch (err) {
+    job.synth_failures = (job.synth_failures || 0) + 1;
+    if (job.synth_failures <= MAX_SYNTH_RETRIES && isRetriableModelError(err)) {
+      say(`Temporary model error (${err.message.slice(0, 120)}); the investigation is kept and synthesis retries automatically in ~75s (retry ${job.synth_failures} of ${MAX_SYNTH_RETRIES})`);
+      const t = setTimeout(() => { synthesizeAndPublish(job, evidence, say).catch((e) => { job.status = 'error'; job.error = e.message; }); }, SYNTH_RETRY_DELAY_MS);
+      if (t.unref) t.unref();
+      return;
+    }
+    job.status = 'research_only';
+    job.research = {
+      note: `Synthesis failed ${job.synth_failures > 1 ? `${job.synth_failures} times over several minutes` : ''} (${err.message.slice(0, 200)}); the investigation results are preserved below.`,
+      search_results: [],
+      pages: evidence.pages.map((p) => ({ url: p.url, title: p.title, headings: p.headings })),
+    };
+    say(`Synthesis failed after ${job.synth_failures} attempt(s), evidence preserved: ${err.message}`);
+    return;
+  }
+  try {
     const fetchedHosts = new Set(evidence.pages.map((p) => { try { return new URL(p.url).hostname.replace(/^www\./, ''); } catch { return ''; } }));
     const fetchedUrls = new Set(evidence.pages.map((p) => p.url));
     // verified requires more than a host match: the step's own words must
@@ -208,16 +260,11 @@ async function runJob(job) {
     job.slug = candidate.slug;
     job.backend = backend.label;
     say(`Guide ready: /guide/${candidate.slug}`);
+    pushGenerated(candidate).then((ok) => pushLog(job, ok ? 'Guide committed to the repository so its link survives restarts' : 'Guide kept in memory only; its link may not survive a restart')).catch(() => {});
   } catch (err) {
-    if (job.evidence_pages && job.evidence_pages.length) {
-      job.status = 'research_only';
-      job.research = { note: `Synthesis failed (${err.message.slice(0, 200)}); the investigation results are preserved below.`, search_results: [], pages: [] };
-      say(`Synthesis failed, evidence preserved: ${err.message}`);
-    } else {
-      job.status = 'error';
-      job.error = err.message;
-      say(`Failed: ${err.message}`);
-    }
+    job.status = 'error';
+    job.error = err.message;
+    say(`Failed: ${err.message}`);
   }
 }
 

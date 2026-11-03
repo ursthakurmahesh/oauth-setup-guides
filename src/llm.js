@@ -65,7 +65,7 @@ function extractJson(text) {
   return JSON.parse(text.slice(start, end + 1));
 }
 
-const GEMINI_FALLBACK_MODELS = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.1-flash-lite'];
+const GEMINI_FALLBACK_MODELS = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.1-pro'];
 
 async function callGemini(prompt, backend, env) {
   const models = [backend.model, ...GEMINI_FALLBACK_MODELS.filter((m) => m !== backend.model)];

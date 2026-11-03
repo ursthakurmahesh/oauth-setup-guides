@@ -298,6 +298,10 @@ function hostOf(url) {
 // discoverable from their own apex (seed URLs only - the content is still
 // fetched, extracted and gated like any other evidence).
 const OFFICIAL_DOC_SEEDS = {
+  'dropbox.com': [
+    'https://www.dropbox.com/developers/documentation/http/documentation',
+    'https://www.dropbox.com/developers/reference/oauth-guide',
+  ],
   'linkedin.com': [
     'https://learn.microsoft.com/en-us/linkedin/shared/authentication/authentication',
     'https://learn.microsoft.com/en-us/linkedin/shared/authentication/getting-access',

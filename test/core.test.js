@@ -114,3 +114,24 @@ test('onApex accepts curated official docs hosts on a different apex, nothing el
   assert.equal(onApex('https://evil-oauth-guides.example.com', 'linkedin.com'), false);
   assert.equal(onApex('https://notlearn.microsoft.com', 'linkedin.com'), false);
 });
+
+const { estimateEffort } = require('../src/effort');
+
+test('estimateEffort labels a rubric-based estimate, never a measurement', () => {
+  const easy = estimateEffort({ difficulty: 'easy', steps: [1, 2, 3] });
+  assert.match(easy.text, /10-20 minutes/);
+  assert.match(easy.text, /estimate/);
+  assert.match(easy.text, /not measured/);
+  const manySteps = estimateEffort({ difficulty: 'easy', steps: [1, 2, 3, 4, 5, 6, 7] });
+  assert.match(manySteps.text, /15-30 minutes/);
+  const hard = estimateEffort({ difficulty: 'hard', steps: [1, 2, 3, 4, 5, 6, 7] });
+  assert.match(hard.text, /hours/);
+});
+
+test('markdown reports an effort estimate instead of "not measured"', () => {
+  const g = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'guides', 'github.json'), 'utf8'));
+  const md = guideToMarkdown(g);
+  assert.match(md, /Expected time\/effort:\*\* roughly/);
+  assert.ok(!/setup time not measured/.test(md));
+  assert.match(md, /approval wait:/);
+});

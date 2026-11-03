@@ -2,6 +2,8 @@
 
 // Guide JSON -> shareable markdown. Also used for the .md download/export.
 
+const { estimateEffort } = require('./effort');
+
 function approvalLabel(a) {
   if (a.required === true) return 'Approval / review required';
   if (a.required === 'conditional') return 'Approval required only in some cases';
@@ -16,7 +18,7 @@ function guideToMarkdown(g) {
   lines.push(`_${g.summary}_`);
   lines.push('');
   lines.push(`- **Difficulty:** ${g.difficulty} (model estimate from a fixed rubric: steps, review, approval)`);
-  lines.push(`- **Expected time/effort:** setup time not measured; approval wait: ${g.approval.typical_timeline}`);
+  lines.push(`- **Expected time/effort:** ${estimateEffort(g).text}; approval wait: ${g.approval.typical_timeline}`);
   lines.push(`- **${approvalLabel(g.approval)}**${g.approval.notes ? ` - ${g.approval.notes}` : ''}`);
   if (g.console_url) lines.push(`- **Developer console:** ${g.console_url}`);
   lines.push(`- **Last checked:** ${g.last_checked}`);

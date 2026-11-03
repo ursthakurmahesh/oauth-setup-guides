@@ -9,6 +9,8 @@ const path = require('path');
 const { listGuides, getGuide, searchGuides } = require('./src/store');
 const { startGeneration, getJob, agentStatus } = require('./src/agent');
 const { guideToMarkdown } = require('./src/markdown');
+const { estimateEffort } = require('./src/effort');
+const { pullGenerated } = require('./src/persist');
 
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -65,7 +67,7 @@ function renderGuidePage(g) {
 <p class="summary">${escapeHtml(g.summary)}</p>
 <dl class="facts">
 <dt>Difficulty</dt><dd>${escapeHtml(g.difficulty)}</dd>
-<dt>Expected time / effort</dt><dd>${escapeHtml(g.approval.typical_timeline)}</dd>
+<dt>Expected time / effort</dt><dd>${escapeHtml(estimateEffort(g).text)}; approval wait: ${escapeHtml(g.approval.typical_timeline)}</dd>
 <dt>Approval</dt><dd>${g.approval.required === true ? 'required' : g.approval.required === 'conditional' ? 'required only in some cases' : g.approval.required === 'unknown' ? 'unknown - not stated in the fetched sources' : 'not required to start (per the fetched sources)'}${g.approval.notes ? ` - ${escapeHtml(g.approval.notes)}` : ''}</dd>
 ${g.console_url ? `<dt>Developer console</dt><dd><a href="${escapeHtml(g.console_url)}">${escapeHtml(g.console_url)}</a></dd>` : ''}
 ${g.coverage ? `<dt>Evidence coverage</dt><dd>${['create_app','credentials','redirect_uri','scopes','approval','agent_human'].map((k) => `${k.replace(/_/g, ' ')}: ${g.coverage[k] && g.coverage[k].status === 'verified' ? 'quote found in a fetched page' : 'not found in fetched pages'}`).map(escapeHtml).join('<br>')}</dd>` : ''}
@@ -178,6 +180,7 @@ if (require.main === module) {
   server.listen(PORT, () => {
     console.log(`oauth-setup-guides listening on http://localhost:${PORT}`);
     console.log(agentStatus().note);
+    pullGenerated().then((n) => { if (n) console.log(`restored ${n} generated guide(s) from the repository`); });
   });
 }
 
