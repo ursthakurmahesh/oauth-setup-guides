@@ -1,11 +1,11 @@
 {
-  "a0800f994cff": {
-    "id": "a0800f994cff",
-    "query": "figma",
+  "6ecfc4e8b7e9": {
+    "id": "6ecfc4e8b7e9",
+    "query": "canva",
     "status": "running",
     "slug": null,
     "error": null,
-    "created_at": "2026-11-04T12:09:22.848Z",
+    "created_at": "2026-11-06T22:16:30.321Z",
     "finished_at": null
   }
 }
