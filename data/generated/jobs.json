@@ -1,11 +1,11 @@
 {
-  "6ecfc4e8b7e9": {
-    "id": "6ecfc4e8b7e9",
-    "query": "canva",
-    "status": "research_only",
+  "589b132b689a": {
+    "id": "589b132b689a",
+    "query": "github",
+    "status": "running",
     "slug": null,
     "error": null,
-    "created_at": "2026-11-06T22:16:30.321Z",
-    "finished_at": "2026-11-06T22:28:05.541Z"
+    "created_at": "2026-11-15T09:13:21.959Z",
+    "finished_at": null
   }
 }
