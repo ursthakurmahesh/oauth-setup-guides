@@ -2,10 +2,10 @@
   "589b132b689a": {
     "id": "589b132b689a",
     "query": "github",
-    "status": "running",
+    "status": "research_only",
     "slug": null,
     "error": null,
     "created_at": "2026-11-15T09:13:21.959Z",
-    "finished_at": null
+    "finished_at": "2026-11-15T09:22:22.416Z"
   }
 }
